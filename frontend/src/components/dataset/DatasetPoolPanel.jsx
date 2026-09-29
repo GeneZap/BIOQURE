@@ -1,526 +1,1093 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion as M } from 'framer-motion'
-import { Database, FolderInput, Layers, Loader2, Play, RefreshCw, Upload, Lock } from 'lucide-react'
-import * as api from '../../services/datasetsApi.js'
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  analyzePublicDataset,
+  getBIOQUREStatus,
+  getPublicDataset,
+  listPublicDatasets,
+  savePublicDataset,
+} from "../../services/datasetsApi.js";
 
-function formatBytes(n) {
-  if (n == null || n === 0) return '0 B'
-  const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0
-  let x = n
-  while (x >= 1024 && i < u.length - 1) {
-    x /= 1024
-    i += 1
-  }
-  return `${x < 10 && i > 0 ? x.toFixed(1) : Math.round(x)} ${u[i]}`
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function firstDefined(...values) {
+  return values.find(
+    (value) => value !== undefined && value !== null && value !== ""
+  );
 }
 
-/**
- * Dataset pool UI: CRUD pools, multi-upload, server path import, file browser,
- * single-file analyze (same payload as POST /analyze), and async batch jobs.
- */
-export function DatasetPoolPanel({
-  pitchDemo,
-  useIntegratedReal,
-  onAnalysisResult,
-  onError,
-  onGlobalLoading,
-}) {
-  const [pools, setPools] = useState([])
-  const [defaultPool, setDefaultPool] = useState(null)
-  const [poolId, setPoolId] = useState('')
-  const [detail, setDetail] = useState(null)
-  const [loadingPools, setLoadingPools] = useState(false)
-  const [newPoolName, setNewPoolName] = useState('My FASTA pool')
-  const [importPath, setImportPath] = useState('')
-  const [selectedIds, setSelectedIds] = useState(() => new Set())
-  const [batchJobId, setBatchJobId] = useState(null)
-  const [batchStatus, setBatchStatus] = useState(null)
-  const [batchPoll, setBatchPoll] = useState(false)
-  const uploadInputRef = useRef(null)
+function normalizeDataset(item, index = 0) {
+  const id = firstDefined(
+    item?.dataset_id,
+    item?.datasetId,
+    item?.id,
+    item?.uuid,
+    `BRCA_${String(index + 1).padStart(3, "0")}`
+  );
 
-  const refreshPools = useCallback(async () => {
-    setLoadingPools(true)
-    onError(null)
-    try {
-      // Load default public pool
-      try {
-        const defaultData = await api.getDefaultPool()
-        setDefaultPool(defaultData)
-      } catch (e) {
-        console.warn('Default pool not available:', e)
-      }
+  return {
+    ...item,
+    id,
+    dataset_id: id,
+    name: firstDefined(
+      item?.name,
+      item?.title,
+      item?.dataset_name,
+      id
+    ),
+    description: firstDefined(
+      item?.description,
+      item?.summary,
+      item?.details,
+      "Public breast-cancer expression dataset prepared for BIOQURE analysis."
+    ),
+    source: firstDefined(
+      item?.source,
+      item?.repository,
+      item?.database,
+      "TCGA / GDC"
+    ),
+    project: firstDefined(
+      item?.project,
+      item?.project_id,
+      item?.program,
+      "TCGA-BRCA"
+    ),
+    sampleCount: firstDefined(
+      item?.sample_count,
+      item?.sampleCount,
+      item?.samples,
+      item?.n_samples,
+      item?.n
+    ),
+    geneCount: firstDefined(
+      item?.gene_count,
+      item?.geneCount,
+      item?.genes,
+      item?.n_genes
+    ),
+    fileName: firstDefined(
+      item?.expression_file,
+      item?.expression_filename,
+      item?.file_name,
+      item?.filename,
+      "expression.tsv"
+    ),
+    access: firstDefined(
+      item?.access,
+      item?.access_level,
+      "Public"
+    ),
+    dataType: firstDefined(
+      item?.data_type,
+      item?.dataType,
+      item?.expression_type,
+      "RNA-seq expression"
+    ),
+  };
+}
 
-      // Load user pools
-      const list = await api.listPools()
-      setPools(list)
-      setPoolId((prev) => prev || (list[0]?.pool_id ?? ''))
-    } catch (e) {
-      onError(e.message || 'Could not list dataset pools.')
-    } finally {
-      setLoadingPools(false)
-    }
-  }, [onError])
+function normalizeDatasetResponse(response) {
+  const items =
+    response?.datasets ??
+    response?.items ??
+    response?.results ??
+    response?.data ??
+    response;
 
-  const refreshDetail = useCallback(async () => {
-    if (!poolId) {
-      setDetail(null)
-      return
-    }
-    try {
-      // Handle default pool specially (don't call UUID-validated endpoints)
-      const defaultPoolId = defaultPool?.pool_id || 'default-public-pool'
-      if (poolId === defaultPoolId) {
-        if (defaultPool) {
-          setDetail(defaultPool)
-        } else {
-          // Reload default pool if not yet available
-          const freshDefault = await api.getDefaultPool()
-          setDefaultPool(freshDefault)
-          setDetail(freshDefault)
-        }
-        setSelectedIds(new Set())
-        return
-      }
-      // For user pools, fetch from API (only UUIDs allowed here)
-      const d = await api.getPool(poolId)
-      setDetail(d)
-      setSelectedIds(new Set())
-    } catch (e) {
-      onError(e.message || 'Could not load pool.')
-    }
-  }, [poolId, defaultPool, onError])
-
-  useEffect(() => {
-    void refreshPools()
-  }, [refreshPools])
-
-  useEffect(() => {
-    void refreshDetail()
-  }, [refreshDetail])
-
-  useEffect(() => {
-    if (!batchJobId || !batchPoll) return undefined
-    let cancelled = false
-    const tick = async () => {
-      try {
-        const st = await api.getBatchJobStatus(batchJobId)
-        if (cancelled) return
-        setBatchStatus(st)
-        if (st.status === 'completed' || st.status === 'failed') {
-          setBatchPoll(false)
-        }
-      } catch {
-        if (!cancelled) setBatchPoll(false)
-      }
-    }
-    void tick()
-    const t = window.setInterval(() => void tick(), 1200)
-    return () => {
-      cancelled = true
-      window.clearInterval(t)
-    }
-  }, [batchJobId, batchPoll])
-
-  const toggleSelect = (fid) => {
-    setSelectedIds((prev) => {
-      const n = new Set(prev)
-      if (n.has(fid)) n.delete(fid)
-      else n.add(fid)
-      return n
-    })
+  if (!Array.isArray(items)) {
+    return [];
   }
 
-  const selectAll = () => {
-    if (!detail?.files?.length) return
-    setSelectedIds(new Set(detail.files.map((f) => f.file_id)))
+  return items.map((item, index) => normalizeDataset(item, index));
+}
+
+function formatNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return "—";
   }
 
-  const clearSelection = () => setSelectedIds(new Set())
+  const number = Number(value);
 
-  const onCreatePool = async () => {
-    onError(null)
-    try {
-      const d = await api.createPool(newPoolName.trim() || 'Untitled pool', '')
-      setPoolId(d.pool_id)
-      await refreshPools()
-      setDetail(d)
-    } catch (e) {
-      onError(e.message || 'Create pool failed.')
-    }
+  if (!Number.isFinite(number)) {
+    return String(value);
   }
 
-  const onUploadClick = () => uploadInputRef.current?.click()
+  return new Intl.NumberFormat("en-IN").format(number);
+}
 
-  const onUploadFiles = async (e) => {
-    const fl = e.target.files
-    if (!fl?.length || !poolId) return
-    onError(null)
-    try {
-      await api.uploadPoolFiles(poolId, Array.from(fl))
-      await refreshDetail()
-      await refreshPools()
-    } catch (err) {
-      onError(err.message || 'Upload failed.')
-    }
-    e.target.value = ''
+function formatPercent(value) {
+  if (value === undefined || value === null || value === "") {
+    return "—";
   }
 
-  const onImportPath = async () => {
-    if (!poolId || !importPath.trim()) return
-    onError(null)
-    try {
-      await api.importPoolFromPath(poolId, importPath.trim())
-      setImportPath('')
-      await refreshDetail()
-      await refreshPools()
-    } catch (e) {
-      onError(e.message || 'Path import failed (enable GENEZAP_ALLOW_DATASET_PATH_IMPORT on server).')
-    }
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return String(value);
   }
 
-  const onSnapshot = async () => {
-    if (!poolId) return
-    onError(null)
-    try {
-      const d = await api.snapshotPool(poolId, 'manual snapshot')
-      setDetail(d)
-      await refreshPools()
-    } catch (e) {
-      onError(e.message || 'Snapshot failed.')
-    }
+  const normalized =
+    number >= 0 && number <= 1 ? number * 100 : number;
+
+  return `${normalized.toFixed(1)}%`;
+}
+
+function getStatusTone(status) {
+  const value = String(status || "").toLowerCase();
+
+  if (
+    value.includes("ready") ||
+    value.includes("success") ||
+    value.includes("available") ||
+    value.includes("complete")
+  ) {
+    return "success";
   }
 
-  const onAnalyzeOne = async (fileId, displayName) => {
-    if (!poolId) return
-    onError(null)
-    onGlobalLoading?.(true)
-    try {
-      const data = await api.analyzePoolFile(poolId, fileId, pitchDemo, useIntegratedReal)
-      onAnalysisResult(data, displayName)
-    } catch (e) {
-      onError(e.message || 'Analysis failed.')
-    } finally {
-      onGlobalLoading?.(false)
-    }
+  if (
+    value.includes("error") ||
+    value.includes("fail") ||
+    value.includes("unavailable")
+  ) {
+    return "error";
   }
 
-  const onAnalyzeSelected = async () => {
-    const ids = [...selectedIds]
-    if (!poolId || ids.length === 0) return
-    if (ids.length === 1) {
-      const f = detail?.files?.find((x) => x.file_id === ids[0])
-      await onAnalyzeOne(ids[0], f?.original_filename || ids[0])
-      return
-    }
-    onError(null)
-    try {
-      const jobId = await api.startBatchJob(poolId, ids, pitchDemo, useIntegratedReal)
-      setBatchJobId(jobId)
-      setBatchStatus({ job_id: jobId, status: 'pending', total: ids.length, completed: 0, failed: 0 })
-      setBatchPoll(true)
-    } catch (e) {
-      onError(e.message || 'Could not start batch job.')
-    }
+  if (
+    value.includes("running") ||
+    value.includes("loading") ||
+    value.includes("processing")
+  ) {
+    return "warning";
   }
 
-  const onViewBatchResult = async (fileId, displayName) => {
-    if (!batchJobId) return
-    onError(null)
-    try {
-      const data = await api.getBatchJobResult(batchJobId, fileId)
-      onAnalysisResult(data, displayName)
-    } catch (e) {
-      onError(e.message || 'Could not load result.')
-    }
-  }
+  return "neutral";
+}
 
-  const selectedList = useMemo(() => {
-    if (!detail?.files) return []
-    return detail.files.filter((f) => selectedIds.has(f.file_id))
-  }, [detail, selectedIds])
+function Badge({ children, tone = "neutral" }) {
+  const tones = {
+    neutral:
+      "border-slate-200 bg-slate-50 text-slate-600",
+    success:
+      "border-emerald-200 bg-emerald-50 text-emerald-700",
+    warning:
+      "border-amber-200 bg-amber-50 text-amber-700",
+    error:
+      "border-red-200 bg-red-50 text-red-700",
+    blue:
+      "border-blue-200 bg-blue-50 text-blue-700",
+    purple:
+      "border-violet-200 bg-violet-50 text-violet-700",
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight gz-heading">
-          <Database className="size-4 text-[var(--gz-cyan-ui)]" aria-hidden />
-          Dataset pool
-        </h3>
-        <button
-          type="button"
-          onClick={() => void refreshPools()}
-          disabled={loadingPools}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--gz-border)] bg-[var(--gz-surface)] px-3 py-1.5 text-xs font-medium text-[var(--gz-muted)] hover:border-cyan-400/35 hover:text-[var(--gz-heading)] disabled:opacity-50"
-        >
-          <RefreshCw className={`size-3.5 ${loadingPools ? 'animate-spin' : ''}`} aria-hidden />
-          Refresh
-        </button>
-      </div>
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tones[tone] || tones.neutral}`}
+    >
+      {children}
+    </span>
+  );
+}
 
-      <div className="grid gap-4 rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-surface)] p-4 sm:grid-cols-2 sm:p-5">
-        {/* Public Pool Section */}
-        {defaultPool && (
-          <div className="rounded-xl bg-gradient-to-br from-cyan-500/10 to-teal-500/10 border border-cyan-400/20 p-4 sm:col-span-2">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400/80">📚 Public Dataset Collection</p>
-              <Lock className="size-3.5 text-cyan-400/60" aria-hidden />
+function Stat({ label, value }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+        {label}
+      </div>
+      <div className="mt-0.5 text-sm font-bold text-slate-800">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   MAIN COMPONENT
+   ========================================================= */
+
+export default function DatasetPoolPanel({
+  onDatasetSelect,
+  onAnalysisComplete,
+  selectedDatasetId,
+  compact = false,
+  className = "",
+}) {
+  const [datasets, setDatasets] = useState([]);
+  const [selectedId, setSelectedId] = useState(
+    selectedDatasetId || ""
+  );
+
+  const [selectedDataset, setSelectedDataset] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const [error, setError] = useState("");
+  const [analysisError, setAnalysisError] = useState("");
+
+  const [backendStatus, setBackendStatus] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  /* -------------------------------------------------------
+     Load datasets + backend status
+     ------------------------------------------------------- */
+
+  async function loadDatasets() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await listPublicDatasets({
+        limit: 100,
+      });
+
+      const normalized = normalizeDatasetResponse(response);
+
+      setDatasets(normalized);
+
+      const preferredId =
+        selectedDatasetId ||
+        normalized[0]?.id ||
+        "";
+
+      if (preferredId) {
+        setSelectedId(preferredId);
+      }
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Unable to load the BIOQURE public dataset collection."
+      );
+      setDatasets([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadBackendStatus() {
+    try {
+      const response = await getBIOQUREStatus();
+      setBackendStatus(response);
+    } catch {
+      setBackendStatus(null);
+    }
+  }
+
+  useEffect(() => {
+    loadDatasets();
+    loadBackendStatus();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDatasetId && selectedDatasetId !== selectedId) {
+      setSelectedId(selectedDatasetId);
+    }
+  }, [selectedDatasetId, selectedId]);
+
+  /* -------------------------------------------------------
+     Load selected dataset details
+     ------------------------------------------------------- */
+
+  async function loadDatasetDetails(datasetId) {
+    if (!datasetId) return;
+
+    setLoadingDetail(true);
+    setAnalysis(null);
+    setAnalysisError("");
+
+    try {
+      const response = await getPublicDataset(datasetId);
+
+      const normalized = normalizeDataset(response);
+
+      setSelectedDataset(normalized);
+
+      if (onDatasetSelect) {
+        onDatasetSelect(normalized);
+      }
+    } catch (err) {
+      setSelectedDataset(
+        datasets.find((dataset) => dataset.id === datasetId) || null
+      );
+
+      setError(
+        err?.message ||
+          "Unable to load dataset details."
+      );
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedDataset(null);
+      return;
+    }
+
+    loadDatasetDetails(selectedId);
+  }, [selectedId]);
+
+  /* -------------------------------------------------------
+     Filtered collection
+     ------------------------------------------------------- */
+
+  const filteredDatasets = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return datasets;
+    }
+
+    return datasets.filter((dataset) => {
+      const searchable = [
+        dataset.id,
+        dataset.name,
+        dataset.description,
+        dataset.source,
+        dataset.project,
+        dataset.dataType,
+        dataset.fileName,
+        dataset.access,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [datasets, search]);
+
+  /* -------------------------------------------------------
+     Select dataset
+     ------------------------------------------------------- */
+
+  function handleSelect(dataset) {
+    setSelectedId(dataset.id);
+    setAnalysis(null);
+    setAnalysisError("");
+  }
+
+  /* -------------------------------------------------------
+     Analyze dataset
+     ------------------------------------------------------- */
+
+  async function handleAnalyze() {
+    if (!selectedId || analyzing) {
+      return;
+    }
+
+    setAnalyzing(true);
+    setAnalysis(null);
+    setAnalysisError("");
+
+    try {
+      const result = await analyzePublicDataset(selectedId, {
+        return_details: true,
+      });
+
+      setAnalysis(result);
+
+      if (onAnalysisComplete) {
+        onAnalysisComplete(result, selectedDataset);
+      }
+    } catch (err) {
+      setAnalysisError(
+        err?.message ||
+          "BIOQURE analysis could not be completed."
+      );
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  /* -------------------------------------------------------
+     Download
+     ------------------------------------------------------- */
+
+  async function handleDownload() {
+    if (!selectedId || downloading) {
+      return;
+    }
+
+    setDownloading(true);
+
+    try {
+      await savePublicDataset(
+        selectedId,
+        selectedDataset?.fileName
+      );
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Dataset download failed."
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  /* -------------------------------------------------------
+     Analysis helpers
+     ------------------------------------------------------- */
+
+  const prediction = firstDefined(
+    analysis?.prediction,
+    analysis?.result?.prediction,
+    analysis?.classification,
+    analysis?.result?.classification
+  );
+
+  const predictedLabel = firstDefined(
+    prediction?.label,
+    prediction?.class_label,
+    prediction?.prediction,
+    analysis?.predicted_label,
+    analysis?.predicted_class,
+    analysis?.label,
+    typeof prediction === "string" ? prediction : null
+  );
+
+  const predictedProbability = firstDefined(
+    prediction?.probability,
+    prediction?.confidence,
+    prediction?.score,
+    analysis?.probability,
+    analysis?.confidence,
+    analysis?.score
+  );
+
+  const selectedModel = firstDefined(
+    analysis?.model_selection?.selected_model,
+    analysis?.model_selection?.model,
+    analysis?.selected_model,
+    analysis?.model,
+    analysis?.inference?.selected_model
+  );
+
+  const quantumUsed = firstDefined(
+    analysis?.quantum?.used,
+    analysis?.quantum_used,
+    analysis?.runtime?.quantum_used,
+    analysis?.inference?.quantum_used
+  );
+
+  const fallbackUsed = firstDefined(
+    analysis?.fallback_used,
+    analysis?.runtime?.fallback_used,
+    analysis?.inference?.fallback_used
+  );
+
+  const biomarkerSummary =
+    analysis?.biomarkers ??
+    analysis?.biomarker_summary ??
+    analysis?.result?.biomarkers ??
+    [];
+
+  const biomarkerRows = Array.isArray(biomarkerSummary)
+    ? biomarkerSummary
+    : Object.entries(biomarkerSummary || {}).map(
+        ([gene, value]) => ({
+          gene,
+          value,
+        })
+      );
+
+  /* -------------------------------------------------------
+     Compact mode
+     ------------------------------------------------------- */
+
+  if (compact) {
+    return (
+      <div
+        className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+              BIOQURE dataset
             </div>
-            <p className="text-xs text-[var(--gz-muted)] mb-3">
-              {defaultPool.file_count} pre-loaded genomes, read-only
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setPoolId(defaultPool.pool_id || 'default-public-pool')
-                setDetail(defaultPool)
-                setSelectedIds(new Set())
-              }}
-              className={`w-full py-2.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                poolId === (defaultPool.pool_id || 'default-public-pool')
-                  ? 'bg-cyan-500/30 border border-cyan-400/50 text-cyan-200'
-                  : 'border border-cyan-400/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20'
-              }`}
+
+            <div className="mt-1 text-sm font-bold text-slate-800">
+              {selectedDataset?.name ||
+                selectedId ||
+                "No dataset selected"}
+            </div>
+          </div>
+
+          {backendStatus && (
+            <Badge
+              tone={
+                getStatusTone(
+                  firstDefined(
+                    backendStatus?.status,
+                    backendStatus?.state
+                  )
+                ) === "success"
+                  ? "success"
+                  : "neutral"
+              }
             >
-              Use Public Pool ({defaultPool.file_count} genomes)
-            </button>
+              {firstDefined(
+                backendStatus?.status,
+                backendStatus?.state,
+                "Ready"
+              )}
+            </Badge>
+          )}
+        </div>
+
+        {selectedDataset && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Stat
+              label="Samples"
+              value={formatNumber(selectedDataset.sampleCount)}
+            />
+            <Stat
+              label="Genes"
+              value={formatNumber(selectedDataset.geneCount)}
+            />
           </div>
         )}
 
-        <div className="space-y-2">
-          <label className="gz-label">Active pool</label>
-          <select
-            value={poolId}
-            onChange={(e) => setPoolId(e.target.value)}
-            className="w-full rounded-xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] px-3 py-2.5 text-sm text-[var(--gz-heading)]"
-          >
-            <option value="">— Select —</option>
-            {pools.map((p) => (
-              <option key={p.pool_id} value={p.pool_id}>
-                {p.name} ({p.file_count} files, v{p.manifest_version})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2 sm:justify-end">
-          <label className="gz-label">New pool</label>
-          <div className="flex flex-wrap gap-2">
-            <input
-              value={newPoolName}
-              onChange={(e) => setNewPoolName(e.target.value)}
-              className="min-w-[8rem] flex-1 rounded-xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] px-3 py-2 text-sm"
-              placeholder="Pool name"
-            />
+        <button
+          type="button"
+          onClick={handleAnalyze}
+          disabled={!selectedId || analyzing}
+          className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {analyzing ? "Analyzing…" : "Run BIOQURE Analysis"}
+        </button>
+      </div>
+    );
+  }
+
+  /* -------------------------------------------------------
+     FULL PANEL
+     ------------------------------------------------------- */
+
+  return (
+    <section
+      className={`rounded-3xl border border-slate-200 bg-slate-50 shadow-sm ${className}`}
+    >
+      {/* Header */}
+      <div className="border-b border-slate-200 bg-white px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
+                Public Research Datasets
+              </h2>
+
+              <Badge tone="blue">BIOQURE</Badge>
+              <Badge tone="purple">TCGA / GDC</Badge>
+            </div>
+
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+              Select a curated public breast-cancer expression dataset,
+              inspect its metadata, and send the selected dataset through
+              the BIOQURE inference pipeline.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {backendStatus && (
+              <Badge
+                tone={
+                  getStatusTone(
+                    firstDefined(
+                      backendStatus?.status,
+                      backendStatus?.state
+                    )
+                  ) === "success"
+                    ? "success"
+                    : "neutral"
+                }
+              >
+                Backend{" "}
+                {firstDefined(
+                  backendStatus?.status,
+                  backendStatus?.state,
+                  "available"
+                )}
+              </Badge>
+            )}
+
             <button
               type="button"
-              onClick={() => void onCreatePool()}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/35 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-[var(--gz-cyan-ui)]"
+              onClick={() => {
+                loadDatasets();
+                loadBackendStatus();
+              }}
+              disabled={loading}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
             >
-              <Layers className="size-3.5" aria-hidden />
-              Create
+              {loading ? "Refreshing…" : "Refresh"}
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-dashed border-[var(--gz-border)] bg-[var(--gz-surface)] p-5">
-          <p className="gz-label">Upload FASTA files</p>
-          <p className="mt-1 text-xs text-[var(--gz-muted)]">Multi-select .fna / .fasta / .fa into the active pool.</p>
-          <input
-            ref={uploadInputRef}
-            type="file"
-            multiple
-            accept=".fna,.fasta,.fa"
-            className="hidden"
-            onChange={(e) => void onUploadFiles(e)}
-          />
-          <button
-            type="button"
-            onClick={onUploadClick}
-            disabled={!poolId || poolId === (defaultPool?.pool_id || 'default-public-pool')}
-            title={poolId === (defaultPool?.pool_id || 'default-public-pool') ? 'Cannot upload to public pool (read-only)' : ''}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] py-3 text-sm font-medium hover:border-cyan-400/35 disabled:opacity-45"
-          >
-            <Upload className="size-4" aria-hidden />
-            Choose files…
-          </button>
-        </div>
+        {/* Search */}
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search dataset ID, project, source, or description…"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+            />
+          </div>
 
-        <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-surface)] p-5">
-          <p className="gz-label flex items-center gap-2">
-            <FolderInput className="size-3.5" aria-hidden />
-            Import from server folder
-          </p>
-          <p className="mt-1 text-xs text-[var(--gz-muted)]">
-            Copies FASTA from a path the API host can read. Set{' '}
-            <span className="font-mono text-[var(--gz-subtle)]">GENEZAP_ALLOW_DATASET_PATH_IMPORT=1</span>.
-          </p>
-          <input
-            value={importPath}
-            onChange={(e) => setImportPath(e.target.value)}
-            placeholder="e.g. D:\data\my_fastas"
-            className="mt-3 w-full rounded-xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] px-3 py-2 font-mono text-xs"
-          />
-          <button
-            type="button"
-            disabled={!poolId || !importPath.trim() || poolId === (defaultPool?.pool_id || 'default-public-pool')}
-            title={poolId === (defaultPool?.pool_id || 'default-public-pool') ? 'Cannot import to public pool (read-only)' : ''}
-            onClick={() => void onImportPath()}
-            className="mt-3 w-full rounded-xl bg-[var(--gz-field-bg)] py-2.5 text-xs font-medium ring-1 ring-[var(--gz-border)] hover:ring-cyan-400/35 disabled:opacity-45"
-          >
-            Import directory
-          </button>
+          <div className="flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-500">
+            {filteredDatasets.length} dataset
+            {filteredDatasets.length === 1 ? "" : "s"}
+          </div>
         </div>
       </div>
 
-      {detail && (
-        <div className="overflow-hidden rounded-2xl border border-[var(--gz-border)] gz-glass">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--gz-border)] px-4 py-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gz-cyan-ui-faint)]">Pool contents</p>
-              <p className="mt-0.5 font-mono text-sm text-[var(--gz-heading)]">
-                {detail.name} · v{detail.manifest_version} · {detail.files.length} files
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void onSnapshot()}
-                className="rounded-lg border border-[var(--gz-border)] px-3 py-1.5 text-xs font-medium text-[var(--gz-muted)] hover:border-cyan-400/35"
-              >
-                Version snapshot
-              </button>
-              <button
-                type="button"
-                onClick={selectAll}
-                className="rounded-lg border border-[var(--gz-border)] px-3 py-1.5 text-xs font-medium text-[var(--gz-muted)] hover:border-cyan-400/35"
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                onClick={clearSelection}
-                className="rounded-lg border border-[var(--gz-border)] px-3 py-1.5 text-xs font-medium text-[var(--gz-muted)] hover:border-cyan-400/35"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="max-h-[min(24rem,50vh)] overflow-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-[var(--gz-surface)] text-[var(--gz-muted)]">
-                <tr>
-                  <th className="w-10 px-3 py-2" />
-                  <th className="px-3 py-2">File</th>
-                  <th className="px-3 py-2">Size</th>
-                  <th className="px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.files.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-[var(--gz-muted)]">
-                      No files yet — upload or import from a server path.
-                    </td>
-                  </tr>
-                )}
-                {detail.files.map((f) => (
-                  <tr key={f.file_id} className="border-t border-[var(--gz-border)]">
-                    <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(f.file_id)}
-                        onChange={() => toggleSelect(f.file_id)}
-                        className="size-3.5 rounded border-[var(--gz-border)]"
-                      />
-                    </td>
-                    <td className="max-w-[12rem] truncate px-3 py-2 font-mono text-[var(--gz-cyan-ui)]" title={f.original_filename}>
-                      {f.original_filename}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-[var(--gz-muted)]">{formatBytes(f.size_bytes)}</td>
-                    <td className="px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => void onAnalyzeOne(f.file_id, f.original_filename)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-cyan-500/15 px-2 py-1 text-[11px] font-semibold text-[var(--gz-cyan-ui)]"
-                      >
-                        <Play className="size-3" aria-hidden />
-                        Run
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--gz-border)] px-4 py-3">
-            <p className="text-xs text-[var(--gz-muted)]">
-              {selectedList.length} selected
-              {selectedList.length > 1 ? ' · batch runs in background' : ''}
-            </p>
-            <M.button
-              type="button"
-              whileTap={{ scale: 0.98 }}
-              disabled={!selectedIds.size}
-              onClick={() => void onAnalyzeSelected()}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-45"
-            >
-              {selectedIds.size > 1 ? (
-                <>
-                  <Loader2 className={`size-3.5 ${batchPoll ? 'animate-spin' : ''}`} aria-hidden />
-                  Batch analyze
-                </>
-              ) : (
-                <>
-                  <Play className="size-3.5" aria-hidden />
-                  Analyze selection
-                </>
-              )}
-            </M.button>
-          </div>
+      {/* Error */}
+      {error && (
+        <div className="mx-5 mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6">
+          <div className="font-semibold">Dataset service message</div>
+          <div className="mt-1">{error}</div>
         </div>
       )}
 
-      {batchStatus && (
-        <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-surface)] p-4">
-          <p className="gz-label">Batch job</p>
-          <p className="mt-1 font-mono text-xs text-[var(--gz-muted)]">{batchStatus.job_id}</p>
-          <p className="mt-2 text-sm text-[var(--gz-heading)]">
-            Status: <span className="font-semibold">{batchStatus.status}</span> — {batchStatus.completed}/{batchStatus.total}{' '}
-            done
-            {batchStatus.failed ? `, ${batchStatus.failed} failed` : ''}
-          </p>
-          {batchStatus.errors?.length > 0 && (
-            <ul className="mt-2 list-inside list-disc text-xs text-rose-300">
-              {batchStatus.errors.map((err, i) => (
-                <li key={i}>
-                  {err.file_id}: {err.detail}
-                </li>
-              ))}
-            </ul>
-          )}
-          {batchStatus.status === 'completed' && selectedList.length > 1 && (
-            <div className="mt-3 max-h-40 overflow-auto rounded-lg border border-[var(--gz-border)] bg-[var(--gz-field-bg)] p-2">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--gz-muted)]">Open result</p>
-              <div className="flex flex-wrap gap-1">
-                {selectedList.map((f) => (
-                  <button
-                    key={f.file_id}
-                    type="button"
-                    onClick={() => void onViewBatchResult(f.file_id, f.original_filename)}
-                    className="rounded-md border border-[var(--gz-border)] px-2 py-1 font-mono text-[10px] hover:border-cyan-400/40"
-                  >
-                    {f.original_filename}
-                  </button>
-                ))}
+      {/* Main grid */}
+      <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
+        {/* Dataset collection */}
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-bold text-slate-800">
+                Curated collection
+              </div>
+
+              <div className="text-xs text-slate-500">
+                Public datasets available to BIOQURE
               </div>
             </div>
+
+            <Badge>
+              {datasets.length
+                ? `${datasets.length} loaded`
+                : "No datasets"}
+            </Badge>
+          </div>
+
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((item) => (
+                <div
+                  key={item}
+                  className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white"
+                />
+              ))}
+            </div>
+          ) : filteredDatasets.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-lg">
+                🧬
+              </div>
+
+              <div className="mt-4 text-sm font-bold text-slate-800">
+                No public datasets found
+              </div>
+
+              <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">
+                The BIOQURE public collection is empty or the current search
+                does not match any dataset.
+              </p>
+
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredDatasets.map((dataset) => {
+                const active = dataset.id === selectedId;
+
+                return (
+                  <button
+                    type="button"
+                    key={dataset.id}
+                    onClick={() => handleSelect(dataset)}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                      active
+                        ? "border-slate-400 bg-white shadow-sm ring-1 ring-slate-300"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+                            {dataset.id}
+                          </span>
+
+                          <Badge tone="success">
+                            {dataset.access}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-2 truncate text-sm font-bold text-slate-800">
+                          {dataset.name}
+                        </div>
+
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                          {dataset.description}
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 text-xs text-slate-400">
+                        {dataset.project}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                        {dataset.dataType}
+                      </span>
+
+                      <span className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                        Samples: {formatNumber(dataset.sampleCount)}
+                      </span>
+
+                      <span className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                        Genes: {formatNumber(dataset.geneCount)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
-      )}
-    </div>
-  )
+
+        {/* Dataset details / analysis */}
+        <div className="min-w-0">
+          <div className="mb-3">
+            <div className="text-sm font-bold text-slate-800">
+              Dataset workspace
+            </div>
+
+            <div className="text-xs text-slate-500">
+              Metadata, inference controls, and returned analysis
+            </div>
+          </div>
+
+          {!selectedId ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+              <div className="text-3xl">🧬</div>
+              <div className="mt-3 text-sm font-bold text-slate-800">
+                Select a dataset
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Choose a dataset from the collection to view details.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Dataset detail card */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                {loadingDetail ? (
+                  <div className="space-y-3">
+                    <div className="h-5 w-2/3 animate-pulse rounded bg-slate-100" />
+                    <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
+                    <div className="h-4 w-5/6 animate-pulse rounded bg-slate-100" />
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
+                      <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
+                    </div>
+                  </div>
+                ) : selectedDataset ? (
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone="blue">
+                            {selectedDataset.id}
+                          </Badge>
+
+                          <Badge tone="success">
+                            {selectedDataset.access}
+                          </Badge>
+                        </div>
+
+                        <h3 className="mt-2 break-words text-lg font-extrabold text-slate-900">
+                          {selectedDataset.name}
+                        </h3>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowDetails((value) => !value)
+                        }
+                        className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        {showDetails ? "Hide JSON" : "View JSON"}
+                      </button>
+                    </div>
+
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                      {selectedDataset.description}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Stat
+                        label="Source"
+                        value={selectedDataset.source}
+                      />
+
+                      <Stat
+                        label="Project"
+                        value={selectedDataset.project}
+                      />
+
+                      <Stat
+                        label="Samples"
+                        value={formatNumber(
+                          selectedDataset.sampleCount
+                        )}
+                      />
+
+                      <Stat
+                        label="Features"
+                        value={formatNumber(
+                          selectedDataset.geneCount
+                        )}
+                      />
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge>
+                        {selectedDataset.dataType}
+                      </Badge>
+
+                      <Badge>
+                        {selectedDataset.fileName}
+                      </Badge>
+                    </div>
+
+                    {showDetails && (
+                      <pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-slate-950 p-4 text-[10px] leading-5 text-slate-200">
+                        {JSON.stringify(
+                          selectedDataset,
+                          null,
+                          2
+                        )}
+                      </pre>
+                    )}
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={handleAnalyze}
+                        disabled={analyzing}
+                        className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {analyzing
+                          ? "Running BIOQURE…"
+                          : "Run BIOQURE Analysis"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDownload}
+                        disabled={downloading}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {downloading
+                          ? "Downloading…"
+                          : "Download Dataset"}
+                      </button>
+                    </div>
+
+                    {analysisError && (
+                      <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs leading-5 text-red-700">
+                        {analysisError}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-500">
+                    Dataset details are unavailable.
+                  </div>
+                )}
+              </div>
+
+              {/* Analysis result */}
+              {analysis && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold text-slate-800">
+                        Analysis result
+                      </div>
+
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        Returned by the BIOQURE inference service
+                      </div>
+                    </div>
+
+                    <Badge tone="success">
+                      Complete
+                    </Badge>
+                  </div>
+
+                  {/* Prediction */}
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Prediction
+                      </div>
+
+                      <div className="mt-1 text-lg font-extrabold text-slate-900">
+                        {predictedLabel || "—"}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Confidence
+                      </div>
+
+                      <div className="mt-1 text-lg font-extrabold text-slate-900">
+                        {formatPercent(predictedProbability)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Runtime/model */}
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <Stat
+                      label="Selected model"
+                      value={selectedModel || "—"}
+                    />
+
+                    <Stat
+                      label="Quantum"
+                      value={
+                        quantumUsed === true
+                          ? "Used"
+                          : quantumUsed === false
+                            ? "Not used"
+                            : "—"
+                      }
+                    />
+
+                    <Stat
+                      label="Fallback"
+                      value={
+                        fallbackUsed === true
+                          ? "Used"
+                          : fallbackUsed === false
+                            ? "Not used"
+                            : "—"
+                      }
+                    />
+                  </div>
+
+                  {/* Biomarkers */}
+                  {biomarkerRows.length > 0 && (
+                    <div className="mt-5">
+                      <div className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">
+                        Biomarker signals
+                      </div>
+
+                      <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
+                        <div className="divide-y divide-slate-200">
+                          {biomarkerRows
+                            .slice(0, 8)
+                            .map((row, index) => {
+                              const gene = firstDefined(
+                                row?.gene,
+                                row?.gene_name,
+                                row?.feature,
+                                row?.name,
+                                Object.keys(row || {})[0],
+                                `Feature ${index + 1}`
+                              );
+
+                              const value = firstDefined(
+                                row?.value,
+                                row?.expression,
+                                row?.score,
+                                row?.importance,
+                                row?.signal,
+                                Object.values(row || {})[1]
+                              );
+
+                              return (
+                                <div
+                                  key={`${gene}-${index}`}
+                                  className="flex items-center justify-between gap-4 px-3 py-2.5"
+                                >
+                                  <span className="font-mono text-xs font-semibold text-slate-700">
+                                    {gene}
+                                  </span>
+
+                                  <span className="text-xs font-semibold text-slate-500">
+                                    {typeof value === "number"
+                                      ? value.toFixed(4)
+                                      : String(value ?? "—")}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw response */}
+                  <details className="mt-4">
+                    <summary className="cursor-pointer text-xs font-semibold text-slate-500">
+                      View complete analysis response
+                    </summary>
+
+                    <pre className="mt-2 max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 text-[10px] leading-5 text-slate-200">
+                      {JSON.stringify(
+                        analysis,
+                        null,
+                        2
+                      )}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
+        <div className="flex flex-col gap-2 text-[11px] leading-5 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            BIOQURE is a research decision-support interface.
+          </span>
+
+          <span>
+            Dataset selection does not constitute a clinical diagnosis.
+          </span>
+        </div>
+      </div>
+    </section>
+  );
 }

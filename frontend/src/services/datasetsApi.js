@@ -1,118 +1,431 @@
-import { API_BASE } from '../config.js'
-import { readApiErrorDetail } from '../utils/apiError.js'
+import { API_BASE } from "../config.js";
 
-const BASE = `${API_BASE}/datasets`
+const BASE = `${API_BASE}/bioqure`;
 
-function q(pitchDemo, useIntegratedReal) {
-  const p = new URLSearchParams()
-  if (pitchDemo) p.set('pitch_demo', 'true')
-  if (useIntegratedReal) p.set('use_integrated_real', 'true')
-  const s = p.toString()
-  return s ? `?${s}` : ''
+async function parseResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  let payload;
+
+  if (contentType.includes("application/json")) {
+    payload = await response.json();
+  } else {
+    payload = await response.text();
+  }
+
+  if (!response.ok) {
+    let message = "Request failed.";
+
+    if (typeof payload === "string" && payload.trim()) {
+      message = payload;
+    } else if (payload?.detail) {
+      if (typeof payload.detail === "string") {
+        message = payload.detail;
+      } else {
+        message = JSON.stringify(payload.detail);
+      }
+    } else if (payload?.message) {
+      message = payload.message;
+    }
+
+    const error = new Error(message);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+
+  return payload;
 }
 
+async function request(path, options = {}) {
+  const response = await fetch(`${BASE}${path}`, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      ...(options.body instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
+      ...(options.headers || {}),
+    },
+  });
+
+  return parseResponse(response);
+}
+
+/* =========================================================
+   BIOQURE PUBLIC DATASET API
+   ========================================================= */
+
+/**
+ * Get all curated public datasets.
+ *
+ * GET /bioqure/datasets/public
+ */
+export async function listPublicDatasets(options = {}) {
+  const params = new URLSearchParams();
+
+  if (options.search) {
+    params.set("search", options.search);
+  }
+
+  if (options.limit != null) {
+    params.set("limit", String(options.limit));
+  }
+
+  if (options.offset != null) {
+    params.set("offset", String(options.offset));
+  }
+
+  const query = params.toString();
+
+  return request(
+    `/datasets/public${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+/**
+ * Get details for one public dataset.
+ *
+ * GET /bioqure/datasets/public/{dataset_id}
+ */
+export async function getPublicDataset(datasetId) {
+  if (!datasetId) {
+    throw new Error("Dataset ID is required.");
+  }
+
+  return request(
+    `/datasets/public/${encodeURIComponent(datasetId)}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+/**
+ * Download a public dataset.
+ *
+ * Returns the raw Response so the caller can create a Blob/download.
+ *
+ * GET /bioqure/datasets/public/{dataset_id}/download
+ */
+export async function downloadPublicDataset(datasetId) {
+  if (!datasetId) {
+    throw new Error("Dataset ID is required.");
+  }
+
+  const response = await fetch(
+    `${BASE}/datasets/public/${encodeURIComponent(datasetId)}/download`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (!response.ok) {
+    await parseResponse(response);
+  }
+
+  return response;
+}
+
+/**
+ * Analyze one public dataset.
+ *
+ * POST /bioqure/datasets/public/{dataset_id}/analyze
+ */
+export async function analyzePublicDataset(datasetId, options = {}) {
+  if (!datasetId) {
+    throw new Error("Dataset ID is required.");
+  }
+
+  return request(
+    `/datasets/public/${encodeURIComponent(datasetId)}/analyze`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ...options,
+      }),
+    }
+  );
+}
+
+/**
+ * Get BIOQURE backend/model runtime status.
+ *
+ * GET /bioqure/status
+ */
+export async function getBIOQUREStatus() {
+  return request("/status", {
+    method: "GET",
+  });
+}
+
+/* =========================================================
+   CONVENIENCE HELPERS
+   ========================================================= */
+
+/**
+ * Get a dataset and its analysis together.
+ *
+ * This is a frontend convenience function.
+ */
+export async function getDatasetReport(datasetId, options = {}) {
+  const [dataset, analysis] = await Promise.all([
+    getPublicDataset(datasetId),
+    analyzePublicDataset(datasetId, options),
+  ]);
+
+  return {
+    dataset,
+    analysis,
+  };
+}
+
+/**
+ * Trigger analysis and normalize the returned shape.
+ *
+ * Keeps the component code simple even if the backend response
+ * contains additional fields later.
+ */
+export async function runBIOQUREAnalysis(datasetId, options = {}) {
+  const result = await analyzePublicDataset(datasetId, options);
+
+  return {
+    ...result,
+    datasetId:
+      result?.dataset_id ??
+      result?.datasetId ??
+      datasetId,
+  };
+}
+
+/**
+ * Download a dataset using the browser.
+ *
+ * This helper creates a temporary browser download link.
+ */
+export async function savePublicDataset(datasetId, filename) {
+  const response = await downloadPublicDataset(datasetId);
+
+  const blob = await response.blob();
+
+  let finalFilename = filename;
+
+  if (!finalFilename) {
+    const disposition = response.headers.get("content-disposition") || "";
+
+    const match = disposition.match(
+      /filename\*?=(?:UTF-8'')?["']?([^;"']+)["']?/i
+    );
+
+    finalFilename = match?.[1]
+      ? decodeURIComponent(match[1])
+      : `${datasetId}.tsv`;
+  }
+
+  const url = window.URL.createObjectURL(blob);
+
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = finalFilename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.URL.revokeObjectURL(url);
+}
+
+/* =========================================================
+   LEGACY DATASET API
+   =========================================================
+   These are retained temporarily so the rest of the existing
+   frontend does not immediately break while we migrate the
+   old GeneZap DatasetPoolPanel to BIOQURE.
+   ========================================================= */
+
 export async function listPools() {
-  const res = await fetch(`${BASE}/pools`)
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+  return request("/../datasets/pools", {
+    method: "GET",
+  });
 }
 
 export async function getDefaultPool() {
-  const res = await fetch(`${BASE}/pools/default`)
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+  return request("/../datasets/pools/default", {
+    method: "GET",
+  });
 }
 
-export async function createPool(name, description = '') {
-  const res = await fetch(`${BASE}/pools`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description }),
-  })
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+export async function createPool(payload) {
+  return request("/../datasets/pools", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getPool(poolId) {
-  const res = await fetch(`${BASE}/pools/${encodeURIComponent(poolId)}`)
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  return request(`/../datasets/pools/${encodeURIComponent(poolId)}`, {
+    method: "GET",
+  });
 }
 
 export async function deletePool(poolId) {
-  const res = await fetch(`${BASE}/pools/${encodeURIComponent(poolId)}`, { method: 'DELETE' })
-  if (!res.ok && res.status !== 204) throw new Error(await readApiErrorDetail(res))
-}
-
-export async function uploadPoolFiles(poolId, fileList) {
-  const form = new FormData()
-  for (const f of fileList) {
-    form.append('files', f)
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
   }
-  const res = await fetch(`${BASE}/pools/${encodeURIComponent(poolId)}/files`, {
-    method: 'POST',
-    body: form,
-  })
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+
+  return request(`/../datasets/pools/${encodeURIComponent(poolId)}`, {
+    method: "DELETE",
+  });
 }
 
-export async function importPoolFromPath(poolId, sourceDirectory) {
-  const res = await fetch(`${BASE}/pools/${encodeURIComponent(poolId)}/import-path`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source_directory: sourceDirectory }),
-  })
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
-}
-
-export async function snapshotPool(poolId, label = '') {
-  const res = await fetch(`${BASE}/pools/${encodeURIComponent(poolId)}/snapshot`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ label }),
-  })
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
-}
-
-export async function analyzePoolFile(poolId, fileId, pitchDemo, useIntegratedReal) {
-  const res = await fetch(
-    `${BASE}/pools/${encodeURIComponent(poolId)}/files/${encodeURIComponent(fileId)}/analyze${q(pitchDemo, useIntegratedReal)}`,
-    { method: 'POST' },
-  )
-  if (!res.ok) {
-    throw new Error(await readApiErrorDetail(res))
+export async function uploadPoolFiles(poolId, formData) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
   }
-  return res.json()
-}
 
-export async function startBatchJob(poolId, fileIds, pitchDemo, useIntegratedReal) {
-  const res = await fetch(`${BASE}/pools/${encodeURIComponent(poolId)}/batch-jobs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      file_ids: fileIds,
-      pitch_demo: pitchDemo,
-      use_integrated_real: useIntegratedReal,
-    }),
-  })
-  if (!res.ok) {
-    throw new Error(await readApiErrorDetail(res))
+  if (!(formData instanceof FormData)) {
+    throw new Error("uploadPoolFiles requires FormData.");
   }
-  const data = await res.json()
-  return data.job_id
+
+  const response = await fetch(
+    `${API_BASE}/datasets/pools/${encodeURIComponent(poolId)}/files`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  return parseResponse(response);
 }
 
-export async function getBatchJobStatus(jobId) {
-  const res = await fetch(`${BASE}/batch-jobs/${encodeURIComponent(jobId)}`)
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+export async function importPoolFromPath(poolId, payload) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  return request(
+    `/../datasets/pools/${encodeURIComponent(poolId)}/import`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
-export async function getBatchJobResult(jobId, fileId) {
-  const res = await fetch(`${BASE}/batch-jobs/${encodeURIComponent(jobId)}/results/${encodeURIComponent(fileId)}`)
-  if (!res.ok) throw new Error(await readApiErrorDetail(res))
-  return res.json()
+export async function snapshotPool(poolId, payload = {}) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  return request(
+    `/../datasets/pools/${encodeURIComponent(poolId)}/snapshot`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function analyzePoolFile(poolId, filename, payload = {}) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  if (!filename) {
+    throw new Error("Filename is required.");
+  }
+
+  return request(
+    `/../datasets/pools/${encodeURIComponent(poolId)}/files/${encodeURIComponent(
+      filename
+    )}/analyze`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function startBatchJob(poolId, payload = {}) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  return request(
+    `/../datasets/pools/${encodeURIComponent(poolId)}/batch`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function getBatchJobStatus(poolId, jobId) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  if (!jobId) {
+    throw new Error("Job ID is required.");
+  }
+
+  return request(
+    `/../datasets/pools/${encodeURIComponent(poolId)}/batch/${encodeURIComponent(
+      jobId
+    )}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+export async function getBatchJobResult(poolId, jobId) {
+  if (!poolId) {
+    throw new Error("Pool ID is required.");
+  }
+
+  if (!jobId) {
+    throw new Error("Job ID is required.");
+  }
+
+  return request(
+    `/../datasets/pools/${encodeURIComponent(poolId)}/batch/${encodeURIComponent(
+      jobId
+    )}/result`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+/* =========================================================
+   ERROR HELPER
+   ========================================================= */
+
+export function readApiErrorDetail(error) {
+  if (!error) {
+    return "Unknown error.";
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error.message) {
+    return error.message;
+  }
+
+  if (error.detail) {
+    return typeof error.detail === "string"
+      ? error.detail
+      : JSON.stringify(error.detail);
+  }
+
+  return "Request failed.";
 }
