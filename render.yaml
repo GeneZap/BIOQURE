@@ -2,7 +2,7 @@ services:
   - type: web
     name: bioqure-inference
     runtime: docker
-    plan: 1c-2g
+    plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/v1/health
