@@ -113,8 +113,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    host = "127.0.0.1"
-    port = 8000
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
     if len(sys.argv) > 1:
         port = int(sys.argv[1])
     print(f"BioQure inference server: http://{host}:{port}")

@@ -1,0 +1,40 @@
+{
+    "main_commit":  "aafe3d5a4808c08aef0fd57ef55de73023c71cee",
+    "main_commit_subject":  "Merge pull request #1 from GeneZap/integration/locked-inference-frontend",
+    "merged_main_status_clean_before_packaging":  true,
+    "packaging_branch":  "chore/finalize-production-packaging",
+    "tracked_file_count_after_packaging_changes":  492,
+    "lfs_file_count":  28,
+    "prohibited_tracked_paths":  {
+                                     "quantum_test":  0,
+                                     "virtual_environments":  0,
+                                     "node_modules":  0,
+                                     "gdc_data":  0,
+                                     "training_outputs":  0,
+                                     "prepared_research":  0,
+                                     "parquet":  0,
+                                     "npy_after_packaging":  0,
+                                     "pycache":  0,
+                                     "pyc":  0
+                                 },
+    "removed_from_tracking":  [
+                                  "BIOQURE_BACKEND-main/X_test_quantum.npy",
+                                  "BIOQURE_BACKEND-main/X_train_quantum.npy",
+                                  "BIOQURE_BACKEND-main/y_test.npy",
+                                  "BIOQURE_BACKEND-main/y_train.npy"
+                              ],
+    "required_paths":  {
+                           "lock":  true,
+                           "inference_service":  true,
+                           "runtime_manifest":  true,
+                           "runtime_artifacts":  14,
+                           "public_pool_entries":  15,
+                           "primary_tumor":  8,
+                           "solid_tissue_normal":  7
+                       },
+    "lock_sha256":  "1a4f71c7b619297537068f7dfd37c12a1725d56f5d5a80f9b24125421689f50a",
+    "runtime_hash_failures":  0,
+    "backend_tests":  "4/4 passed",
+    "container_build":  "blocked: Docker Desktop Linux engine unavailable",
+    "held_out_test_data_accessed":  false
+}
