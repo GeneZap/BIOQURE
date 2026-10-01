@@ -1,0 +1,137 @@
+[
+  {
+    "demo_id": "BRCA-DEMO-001",
+    "display_name": "TCGA-BRCA Demo 001",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "83af6ceac028d0d9e35c25cb64c9f57442803862008d654eb372dac2b715762c",
+    "size_bytes": 4243325,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-002",
+    "display_name": "TCGA-BRCA Demo 002",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "ae251d99237d7db403d90bd1d5d9e861cf2a5b86d68e678b03dcbe4b5c019732",
+    "size_bytes": 4242948,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-003",
+    "display_name": "TCGA-BRCA Demo 003",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "2a456d7c1b09c6e46229e3cd7304c3368c8c75427af70f4e5b9e64705353cf32",
+    "size_bytes": 4229305,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-004",
+    "display_name": "TCGA-BRCA Demo 004",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "8af6d57aeadd3718d110a82e7c502d5cffea1ed1189d4141ac66e2dff4b61260",
+    "size_bytes": 4219617,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-005",
+    "display_name": "TCGA-BRCA Demo 005",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "6443476fe715430eb043f3ff1c4d0b7382bed05f4a3630d17eddc9e386082255",
+    "size_bytes": 4244868,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-006",
+    "display_name": "TCGA-BRCA Demo 006",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "79196ead2b06ef1871f149718db91f4c827c128b541cda4a948dc13f212530af",
+    "size_bytes": 4235115,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-007",
+    "display_name": "TCGA-BRCA Demo 007",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "b02e82366e3377799452c4ec9d62283e596ef93037df9a6a7a0a49067e38474d",
+    "size_bytes": 4229577,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-008",
+    "display_name": "TCGA-BRCA Demo 008",
+    "sample_type": "Primary Tumor",
+    "split": "train",
+    "file_sha256": "3e8974ddb136381f12409edff7b93a240cbc9b3c6a006f525b01fc4b508845a1",
+    "size_bytes": 4252794,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-009",
+    "display_name": "TCGA-BRCA Demo 009",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "b0b40640e527f9f697a1caef3ecf23507f0932b6ef1c4593735f507417b42a39",
+    "size_bytes": 4230216,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-010",
+    "display_name": "TCGA-BRCA Demo 010",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "7263c39c7d23240f3e490f93b58a29ead7132904db53fad1407cff7a26995f30",
+    "size_bytes": 4255467,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-011",
+    "display_name": "TCGA-BRCA Demo 011",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "53cf6881447ef6083b6976fe5418c989d23676bf93fb5ed41745154fd6454361",
+    "size_bytes": 4256504,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-012",
+    "display_name": "TCGA-BRCA Demo 012",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "820c9accef4b1d327acb942c65193d2c4c2bd2c618442e2d3b03b83758d20632",
+    "size_bytes": 4246942,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-013",
+    "display_name": "TCGA-BRCA Demo 013",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "6931713136a5532569399b371e319ca53904e2140c3664ecfa570954c9e305e9",
+    "size_bytes": 4261615,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-014",
+    "display_name": "TCGA-BRCA Demo 014",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "4ccc3ee05e9335f3b80f5eae95a026fac7051c60f35cbcae62da5424f49e710d",
+    "size_bytes": 4265890,
+    "biomarkers_available": true
+  },
+  {
+    "demo_id": "BRCA-DEMO-015",
+    "display_name": "TCGA-BRCA Demo 015",
+    "sample_type": "Solid Tissue Normal",
+    "split": "train",
+    "file_sha256": "4defce6ac06bc8a67f6948261f0a3ec9c46895c7127b9d81adf925f91e03e1c5",
+    "size_bytes": 4261955,
+    "biomarkers_available": true
+  }
+]

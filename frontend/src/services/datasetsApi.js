@@ -1,6 +1,6 @@
 import { API_BASE } from "../config.js";
 
-const BASE = `${API_BASE}/bioqure`;
+const BASE = `${API_BASE}/api/v1`;
 
 async function parseResponse(response) {
   const contentType = response.headers.get("content-type") || "";
@@ -62,28 +62,32 @@ async function request(path, options = {}) {
  * GET /bioqure/datasets/public
  */
 export async function listPublicDatasets(options = {}) {
-  const params = new URLSearchParams();
-
-  if (options.search) {
-    params.set("search", options.search);
-  }
-
-  if (options.limit != null) {
-    params.set("limit", String(options.limit));
-  }
-
-  if (options.offset != null) {
-    params.set("offset", String(options.offset));
-  }
-
-  const query = params.toString();
-
-  return request(
-    `/datasets/public${query ? `?${query}` : ""}`,
-    {
-      method: "GET",
-    }
-  );
+  const response = await request("/demo-samples", { method: "GET" });
+  const query = String(options.search || "").trim().toLowerCase();
+  const samples = (response?.samples || []).filter((sample) => {
+    return !query || [sample.demo_id, sample.display_name, sample.sample_type]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
+  return {
+    datasets: samples.map((sample) => ({
+      dataset_id: sample.demo_id,
+      name: sample.display_name,
+      description: "Training-split TCGA-BRCA STAR-counts sample.",
+      source: "TCGA / GDC",
+      project: "TCGA-BRCA",
+      sample_type: sample.sample_type,
+      split: sample.split,
+      file_name: `${sample.demo_id}.rna_seq.augmented_star_gene_counts.tsv`,
+      access: "Public",
+      data_type: "RNA-seq expression",
+      size_bytes: sample.size_bytes,
+      file_sha256: sample.file_sha256,
+      biomarkers_available: sample.biomarkers_available,
+    })),
+  };
 }
 
 /**
@@ -96,12 +100,10 @@ export async function getPublicDataset(datasetId) {
     throw new Error("Dataset ID is required.");
   }
 
-  return request(
-    `/datasets/public/${encodeURIComponent(datasetId)}`,
-    {
-      method: "GET",
-    }
-  );
+  const response = await listPublicDatasets();
+  const dataset = response.datasets.find((item) => item.dataset_id === datasetId);
+  if (!dataset) throw new Error("Public sample was not found.");
+  return dataset;
 }
 
 /**
@@ -116,18 +118,7 @@ export async function downloadPublicDataset(datasetId) {
     throw new Error("Dataset ID is required.");
   }
 
-  const response = await fetch(
-    `${BASE}/datasets/public/${encodeURIComponent(datasetId)}/download`,
-    {
-      method: "GET",
-    }
-  );
-
-  if (!response.ok) {
-    await parseResponse(response);
-  }
-
-  return response;
+  throw new Error("Public samples are resolved server-side and are not downloaded to the browser.");
 }
 
 /**
@@ -140,15 +131,10 @@ export async function analyzePublicDataset(datasetId, options = {}) {
     throw new Error("Dataset ID is required.");
   }
 
-  return request(
-    `/datasets/public/${encodeURIComponent(datasetId)}/analyze`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        ...options,
-      }),
-    }
-  );
+  return request(`/predict/demo/${encodeURIComponent(datasetId)}`, {
+    method: "POST",
+    body: JSON.stringify({ ...options }),
+  });
 }
 
 /**
@@ -157,7 +143,7 @@ export async function analyzePublicDataset(datasetId, options = {}) {
  * GET /bioqure/status
  */
 export async function getBIOQUREStatus() {
-  return request("/status", {
+  return request("/health", {
     method: "GET",
   });
 }
@@ -428,4 +414,17 @@ export function readApiErrorDetail(error) {
   }
 
   return "Request failed.";
+}
+
+export async function uploadDataset(file, onProgress) {
+  if (!file) throw new Error("Choose a STAR-counts TSV file.");
+  if (!file.name.endsWith(".rna_seq.augmented_star_gene_counts.tsv")) {
+    throw new Error("File must end with .rna_seq.augmented_star_gene_counts.tsv.");
+  }
+  const formData = new FormData();
+  formData.append("file", file);
+  onProgress?.(0);
+  const result = await request("/predict/upload", { method: "POST", body: formData });
+  onProgress?.(100);
+  return result;
 }

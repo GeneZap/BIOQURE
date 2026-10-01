@@ -1,0 +1,110 @@
+{
+  "lock_schema_version": 1,
+  "locked_at": "2026-09-30T21:59:05.7570379+05:30",
+  "test_set_status": "not_evaluated",
+  "post_test_tuning_rule": "No post-test tuning, threshold changes, feature changes, preprocessing changes, model changes, or endpoint selection is permitted.",
+  "data": {
+    "prepared_data_dir": "prepared_ratio_1_0_angle_zero_half_pi",
+    "feature_names": [
+      "FABP4",
+      "LEP",
+      "COL10A1",
+      "CHRDL1",
+      "SCARA5",
+      "SAA1",
+      "SFRP1",
+      "LPL"
+    ],
+    "class_mapping": {"Normal": 0, "Tumor": 1},
+    "quantum_majority_ratio": 1.0,
+    "quantum_angle_range": "zero-half-pi",
+    "quantum_angle_bounds": {"min": 0.0, "max": 1.5707963267948966},
+    "preparation_seed": 42,
+    "quantum_training_counts": {"total": 134, "normal": 67, "tumor": 67},
+    "sample_split_fingerprint": {
+      "path": "expression_matrix/biomarker_outputs/sample_splits.csv",
+      "sha256": "acb8d541f8f9a70ee0744cb93497241ad14548e3aa55d0c23dc62c59067e327f"
+    },
+    "prepared_input_fingerprint": "eb59667a6f105b9f676f7dd098792bab4657004c1060457aec88e7d71a5a0ab9"
+  },
+  "package_versions": {
+    "dill": "0.4.1",
+    "joblib": "1.6.0",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "qiskit": "2.5.2",
+    "qiskit-aer": "0.17.2",
+    "qiskit-algorithms": "0.4.0",
+    "qiskit-machine-learning": "0.9.1",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1"
+  },
+  "preprocessing_artifacts": [
+    {"path": "prepared_ratio_1_0_angle_zero_half_pi/classical_scaler.joblib", "sha256": "696f3ea22b860974f2bc0cdb3519b56f9e718fabd09a9e789411fb7d32a2f73b"},
+    {"path": "prepared_ratio_1_0_angle_zero_half_pi/quantum_scaler.joblib", "sha256": "4d6c0a53513f9a4614f86d44bf57894e0d355e330965b382af7dbf2d903a87ef"},
+    {"path": "prepared_ratio_1_0_angle_zero_half_pi/preparation_config.json", "sha256": "13bcb85f4b1be3a91a778da95b5afc8fd515d3704b7dc314807cd1b35f77bba9"},
+    {"path": "prepared_ratio_1_0_angle_zero_half_pi/prepared_samples.csv", "sha256": "ef3bed42760e395615c7bc2649a60ac502b31d4574214c05ae7752508f58793e"},
+    {"path": "expression_matrix/biomarker_outputs/selected_biomarkers.csv", "sha256": "fdbb21d73117140e88ac9086d4f201f6f65d73733b19033b6914c40a522036f6"}
+  ],
+  "models": {
+    "overall_primary": {
+      "label": "full-data logistic regression",
+      "purpose": "best validated deployment baseline",
+      "model_path": "training_outputs/angle_screen_zero_half_pi_seed21/logistic_regression.joblib",
+      "model_sha256": "8b67c5eb5767d8eed4b1cdfed5f8a341276e65246c69f4bba3ae31731eb9baee",
+      "scaler_path": "prepared_ratio_1_0_angle_zero_half_pi/classical_scaler.joblib",
+      "decision_threshold": 0.5,
+      "decision_rule": "predict Tumor when fitted logistic probability >= 0.50"
+    },
+    "primary_quantum": {
+      "label": "Candidate A five-seed mean probability ensemble",
+      "purpose": "sensitivity-first quantum endpoint",
+      "seeds": [7, 21, 42, 84, 126],
+      "feature_map": "zz_feature_map",
+      "feature_map_reps": 1,
+      "ansatz": "real_amplitudes",
+      "ansatz_reps": 2,
+      "entanglement": "linear",
+      "optimizer": "COBYLA",
+      "maxiter": 300,
+      "shots": 2048,
+      "aggregation": "arithmetic mean of five positive-class probabilities",
+      "decision_threshold": 0.33,
+      "model_files": [
+        {"path": "training_outputs/angle_screen_zero_half_pi_seed7/vqc_model.dill", "sha256": "1c2059f04b310126597a7b1396297b2d06dcb63521a2aa643d62a89c8fd6ccd2"},
+        {"path": "training_outputs/angle_screen_zero_half_pi_seed21/vqc_model.dill", "sha256": "3e143ba0ce1a35069c2467bb10905e732b5fa863736e67851b90fd3c51fef784"},
+        {"path": "training_outputs/angle_screen_zero_half_pi_seed42/vqc_model.dill", "sha256": "633d06934da6ff3c42fd8899b200aad04f00c80a6a1a2dba2b74aa2207a78145"},
+        {"path": "training_outputs/angle_screen_zero_half_pi_seed84/vqc_model.dill", "sha256": "ca460e436f422df6162177f4a8937b97b3355560d76c933780a184720171a345"},
+        {"path": "training_outputs/angle_screen_zero_half_pi_seed126/vqc_model.dill", "sha256": "ef641a39974526093c3dd5dc81c7d4dbe8827b198af613078f19229bc598a05a"}
+      ],
+      "validation_metrics": {"roc_auc": 0.83823, "pr_auc": 0.97597, "balanced_accuracy": 0.841069, "sensitivity": 0.986486, "specificity": 0.695652, "mcc": 0.743844, "brier_score": 0.235841, "accuracy": 0.959184, "tn": 16, "fp": 7, "fn": 3, "tp": 219}
+    },
+    "secondary_quantum": {
+      "label": "Candidate A median plus Candidate E median",
+      "purpose": "balanced sensitivity/specificity quantum endpoint",
+      "candidate_a_seeds": [7, 21, 42, 84, 126],
+      "candidate_e_seeds": [7, 21, 42, 84, 126],
+      "candidate_a_configuration": "zero-half-pi, ratio 1.0, zz_feature_map reps 1, real_amplitudes reps 2, linear, COBYLA, maxiter 300, shots 2048",
+      "candidate_e_configuration": "zero-half-pi, ratio 1.0, zz_feature_map reps 2, real_amplitudes reps 1, linear, COBYLA, maxiter 300, shots 2048",
+      "aggregation": "median positive-class probability within each five-seed ensemble, then convex combination",
+      "weight_candidate_a": 0.55,
+      "weight_candidate_e": 0.45,
+      "decision_threshold": 0.34,
+      "candidate_e_model_files": [
+        {"path": "training_outputs/architecture_screen_zero_half_pi_E_seed7/vqc_model.dill", "sha256": "0515c459b26a26879fa9ba2dfed013a18bc098859df6f470b37c0f3bf37df91d"},
+        {"path": "training_outputs/architecture_screen_zero_half_pi_E_seed21/vqc_model.dill", "sha256": "eb6dba65b507b1dc79357ad0c9f4edfa187494ecdd6d54c48f648bef0140f59f"},
+        {"path": "training_outputs/architecture_screen_zero_half_pi_E_seed42/vqc_model.dill", "sha256": "eb5e9f1be1b87c3bbc29baffc782c9fd78e5191ea2aaca6a7db8181967cab122"},
+        {"path": "training_outputs/architecture_screen_zero_half_pi_E_seed84/vqc_model.dill", "sha256": "3227153782d48a23901d540aaa1d8c5e44cf211220a01372808b18cd3f28f4be"},
+        {"path": "training_outputs/architecture_screen_zero_half_pi_E_seed126/vqc_model.dill", "sha256": "f56f6190b1ba713f362711af6bbdcbe6dba025d5b85ebb64283c5bb7d38025b0"}
+      ],
+      "validation_metrics": {"roc_auc": 0.858598, "pr_auc": 0.978969, "balanced_accuracy": 0.855268, "sensitivity": 0.927928, "specificity": 0.782609, "mcc": 0.599441, "brier_score": 0.234625, "accuracy": 0.914286, "tn": 18, "fp": 5, "fn": 16, "tp": 206}
+    }
+  },
+  "test_inputs": {
+    "status": "hashes_deferred_until_manual_authorization; no test bytes were accessed while creating this lock",
+    "sample_manifest_path": "prepared_ratio_1_0_angle_zero_half_pi/prepared_samples.csv",
+    "classical_features_path": "prepared_ratio_1_0_angle_zero_half_pi/X_test_classical.npy",
+    "quantum_features_path": "prepared_ratio_1_0_angle_zero_half_pi/X_test_quantum.npy",
+    "labels_path": "prepared_ratio_1_0_angle_zero_half_pi/y_test.npy"
+  }
+}

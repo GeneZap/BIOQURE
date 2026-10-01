@@ -4,7 +4,7 @@ import {
   getBIOQUREStatus,
   getPublicDataset,
   listPublicDatasets,
-  savePublicDataset,
+  uploadDataset,
 } from "../../services/datasetsApi.js";
 
 /* =========================================================
@@ -223,10 +223,12 @@ export default function DatasetPoolPanel({
   const [analysis, setAnalysis] = useState(null);
 
   const [search, setSearch] = useState("");
+  const [sampleType, setSampleType] = useState("All");
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [error, setError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
@@ -341,11 +343,8 @@ export default function DatasetPoolPanel({
   const filteredDatasets = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return datasets;
-    }
-
     return datasets.filter((dataset) => {
+      if (sampleType !== "All" && dataset.sample_type !== sampleType) return false;
       const searchable = [
         dataset.id,
         dataset.name,
@@ -362,7 +361,30 @@ export default function DatasetPoolPanel({
 
       return searchable.includes(query);
     });
-  }, [datasets, search]);
+  }, [datasets, search, sampleType]);
+
+  function chooseRandomSample() {
+    const pool = filteredDatasets.length ? filteredDatasets : datasets;
+    const sample = pool[Math.floor(Math.random() * pool.length)];
+    if (sample) handleSelect(sample);
+  }
+
+  async function handleUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const result = await uploadDataset(file, setUploadProgress);
+      setAnalysis(result);
+      onAnalysisComplete?.(result, { id: file.name, name: file.name, sample_type: "Manual upload" });
+    } catch (err) {
+      setError(err?.message || "Manual upload failed.");
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  }
 
   /* -------------------------------------------------------
      Select dataset
@@ -410,28 +432,6 @@ export default function DatasetPoolPanel({
   /* -------------------------------------------------------
      Download
      ------------------------------------------------------- */
-
-  async function handleDownload() {
-    if (!selectedId || downloading) {
-      return;
-    }
-
-    setDownloading(true);
-
-    try {
-      await savePublicDataset(
-        selectedId,
-        selectedDataset?.fileName
-      );
-    } catch (err) {
-      setError(
-        err?.message ||
-          "Dataset download failed."
-      );
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   /* -------------------------------------------------------
      Analysis helpers
@@ -649,7 +649,17 @@ export default function DatasetPoolPanel({
             {filteredDatasets.length} dataset
             {filteredDatasets.length === 1 ? "" : "s"}
           </div>
+          <select value={sampleType} onChange={(event) => setSampleType(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-600">
+            <option>All</option>
+            <option>Primary Tumor</option>
+            <option>Solid Tissue Normal</option>
+          </select>
+          <button type="button" onClick={chooseRandomSample} disabled={!datasets.length} className="rounded-xl bg-slate-900 px-3 py-3 text-xs font-bold text-white disabled:opacity-50">Choose random</button>
         </div>
+        <label className="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs font-semibold text-slate-600">
+          <span>{uploading ? `Uploading ${uploadProgress}%` : "Analyze a local STAR-counts TSV"}</span>
+          <input type="file" accept=".tsv,.rna_seq.augmented_star_gene_counts.tsv" onChange={handleUpload} disabled={uploading} className="max-w-[180px] text-[11px]" />
+        </label>
       </div>
 
       {/* Error */}
@@ -906,16 +916,6 @@ export default function DatasetPoolPanel({
                           : "Run BIOQURE Analysis"}
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={handleDownload}
-                        disabled={downloading}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {downloading
-                          ? "Downloading…"
-                          : "Download Dataset"}
-                      </button>
                     </div>
 
                     {analysisError && (

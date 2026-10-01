@@ -1,4 +1,12 @@
-# Deployment guide (Vercel + Render/Fly)
+# Deployment
+
+Deploy the Python inference service with the locked runtime dependencies and the verified
+model artifacts, public pool, immutable lock, and `backend/inference_service/`. Build the
+Vite frontend with `VITE_API_BASE_URL` set to the deployed API origin. Configure explicit
+`BIOQURE_CORS_ORIGINS`; do not use wildcard production CORS.
+
+This is a research demonstration only. The output is not a medical diagnosis and must not
+be used for clinical decisions.# Deployment guide (Vercel + Render/Fly)
 
 ## Architecture (incremental, matches current code)
 

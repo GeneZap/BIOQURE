@@ -140,6 +140,37 @@ function WorkflowStep({
   );
 }
 
+function LockedInferenceSummary({ result }) {
+  const predictions = result?.predictions || {};
+  const labels = {
+    classical_logistic: "Logistic regression",
+    quantum_candidate_a_mean: "Candidate A quantum ensemble",
+    quantum_ae_balanced: "A/E quantum ensemble",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 md:grid-cols-3">
+        {Object.entries(predictions).map(([key, prediction]) => (
+          <div key={key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-bold text-slate-700">{labels[key] || key}</div>
+            <div className="mt-2 text-xl font-black text-slate-950">{prediction.predicted_class}</div>
+            <div className="mt-1 text-xs text-slate-500">Estimated tumor-class probability: {(prediction.tumor_probability * 100).toFixed(1)}%</div>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <table className="min-w-full text-left text-xs">
+          <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400"><tr><th className="px-3 py-2">Biomarker</th><th className="px-3 py-2">Raw TPM</th><th className="px-3 py-2">log2(TPM + 1)</th><th className="px-3 py-2">Quantum angle</th></tr></thead>
+          <tbody>{(result?.biomarkers || []).map((row) => <tr key={row.gene_name} className="border-t border-slate-100"><td className="px-3 py-2 font-bold">{row.gene_name}</td><td className="px-3 py-2">{row.raw_tpm.toFixed(4)}</td><td className="px-3 py-2">{row.log2_tpm_plus_1.toFixed(4)}</td><td className="px-3 py-2">{row.quantum_angle.toFixed(4)}</td></tr>)}</tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap gap-3 text-xs text-slate-500"><span>Agreement: {result?.agreement?.summary}</span><span>Lock: {result?.model_lock?.lock_sha256?.slice(0, 12)}…</span><span>Total: {result?.timing_ms?.total} ms</span></div>
+      <p className="text-xs font-semibold text-amber-700">Research demonstration only. This output is not a medical diagnosis and must not be used for clinical decisions.</p>
+    </div>
+  );
+}
+
 /* =========================================================
    APP
    ========================================================= */
@@ -414,6 +445,7 @@ export default function App() {
                 {/* OVERVIEW */}
                 {activeTab === "overview" && (
                   <div className="space-y-5">
+                    <LockedInferenceSummary result={analysis} />
                     <ReportMetrics
                       analysis={analysis}
                       dataset={selectedDataset}
