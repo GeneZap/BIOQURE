@@ -8,13 +8,4 @@ services:
     healthCheckPath: /api/v1/health
     envVars:
       - key: BIOQURE_CORS_ORIGINS
-        value: https://bioqure-frontend.onrender.com
-
-  - type: web
-    name: bioqure-frontend
-    runtime: static
-    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
-    staticPublishPath: ./frontend/dist
-    envVars:
-      - key: VITE_API_BASE_URL
-        value: https://bioqure-inference.onrender.com
+        value: https://bioqure.vercel.app
