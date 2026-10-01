@@ -1,0 +1,47 @@
+{
+  "seed": 42,
+  "feature_names": [
+    "FABP4",
+    "LEP",
+    "COL10A1",
+    "CHRDL1",
+    "SCARA5",
+    "SAA1",
+    "SFRP1",
+    "LPL"
+  ],
+  "class_mapping": {
+    "Normal": 0,
+    "Tumor": 1
+  },
+  "classical_scaler": "StandardScaler fitted on complete training split",
+  "quantum_scaler": "MinMaxScaler [0.0, 1.5707963267948966] fitted on complete training split",
+  "quantum_angle_range": "zero-half-pi",
+  "quantum_angle_bounds": {
+    "min": 0.0,
+    "max": 1.5707963267948966
+  },
+  "quantum_majority_ratio": 1.0,
+  "counts": {
+    "train": {
+      "total": 735,
+      "normal": 67,
+      "tumor": 668
+    },
+    "validation": {
+      "total": 245,
+      "normal": 23,
+      "tumor": 222
+    },
+    "test": {
+      "total": 244,
+      "normal": 23,
+      "tumor": 221
+    }
+  },
+  "quantum_training_counts": {
+    "total": 134,
+    "normal": 67,
+    "tumor": 67
+  }
+}

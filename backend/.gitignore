@@ -1,0 +1,75 @@
+# Raw GDC download payloads
+[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/
+metadata extraction/gdc_data/
+
+# Local Python environment
+quantum_test/
+.venv/
+venv/
+.env
+.env.local
+.env.*.local
+
+# Generated training artifacts
+prepared_ratio_2_0/
+training_outputs/
+
+# Python cache and tooling
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.mypy_cache/
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+htmlcov/
+
+# Large generated data files
+*.parquet
+*.npy
+*.pkl
+*.joblib
+*.dill
+*.h5
+*.hdf5
+*.mat
+
+# Logs and temporary files
+*.log
+*~
+*.tmp
+*.temp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter and OS files
+.ipynb_checkpoints/
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# Local or sensitive configuration
+config.ini
+config.local
+secrets.json
+
+# Large local datasets not needed in source control
+datasets/
+data/
+
+# Inference-service local inputs and uploads
+uploads/
+demo_source_data/
+*.rna_seq.augmented_star_gene_counts.tsv
+
+# Deliberately tracked public/runtime artifacts
+!public_dataset_pool/raw/*.rna_seq.augmented_star_gene_counts.tsv
+!runtime/model_artifacts/**/*.joblib
+!runtime/model_artifacts/**/*.dill

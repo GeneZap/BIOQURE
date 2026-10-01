@@ -3,7 +3,30 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+backend/quantum_test/
+backend/.venv*/
 *.egg-info/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+uploads/
+temp/
+tmp/
+logs/
+*.log
+.env
+.env.*
+
+# Research-only source data and generated model inputs
+backend/metadata extraction/gdc_data/
+backend/prepared_ratio_*/
+backend/training_outputs/
+backend/ansatz1_predictions/
+backend/ratio1_analysis_bundle/
+gdc_download_*/
+CV_HACKATHON_MODEL_DATASET/
+*.parquet
+*.npy
 
 # Large / generated data (keep CSV in backend/data tracked if you want)
 backend/bacterial_dna/
