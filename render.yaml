@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: bioqure-inference
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: BIOQURE_CORS_ORIGINS
+        value: https://bioqure-frontend.onrender.com
+
+  - type: static_site
+    name: bioqure-frontend
+    plan: starter
+    buildCommand: npm ci --prefix frontend && npm run build --prefix frontend
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://bioqure-inference.onrender.com
