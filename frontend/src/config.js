@@ -6,7 +6,6 @@ const raw = import.meta.env.VITE_API_BASE_URL?.trim()
 const isProd = import.meta.env.PROD === true
 
 if (isProd && !raw) {
-  // eslint-disable-next-line no-console
   console.error(
     '[GeneZap] VITE_API_BASE_URL is not set. Add it in Vercel (or .env.production) so the UI can reach your deployed API.',
   )

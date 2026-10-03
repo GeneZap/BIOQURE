@@ -6,7 +6,7 @@ function clamp01(value) {
   return Math.min(1, Math.max(0, number))
 }
 
-export default function ReportBiomarkers({ biomarkers = [], result = null }) {
+export default function ReportBiomarkers({ biomarkers = null, result = null }) {
   const items = Array.isArray(biomarkers)
     ? biomarkers
     : Array.isArray(result?.biomarkers)

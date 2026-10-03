@@ -446,10 +446,7 @@ export default function App() {
                 {activeTab === "overview" && (
                   <div className="space-y-5">
                     <LockedInferenceSummary result={analysis} />
-                    <ReportMetrics
-                      analysis={analysis}
-                      dataset={selectedDataset}
-                    />
+                    <ReportMetrics result={analysis} />
 
                     <div className="grid gap-5 lg:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -576,30 +573,24 @@ export default function App() {
                 {/* BENCHMARK */}
                 {activeTab === "benchmark" && (
                   <ReportBenchmark
-                    analysis={analysis}
+                    benchmark={analysis.benchmark}
+                    result={analysis}
                   />
                 )}
 
                 {/* QUANTUM */}
                 {activeTab === "quantum" && (
-                  <ReportQuantum
-                    analysis={analysis}
-                  />
+                  <ReportQuantum result={analysis} />
                 )}
 
                 {/* BIOMARKERS */}
                 {activeTab === "biomarkers" && (
-                  <ReportBiomarkers
-                    analysis={analysis}
-                  />
+                  <ReportBiomarkers result={analysis} />
                 )}
 
                 {/* INPUT METRICS */}
                 {activeTab === "input" && (
-                  <ReportInputMetrics
-                    analysis={analysis}
-                    dataset={selectedDataset}
-                  />
+                  <ReportInputMetrics result={analysis} />
                 )}
               </div>
             </div>
