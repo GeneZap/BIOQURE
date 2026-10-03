@@ -12,7 +12,7 @@ async function parseResponse(response) {
     const message =
       typeof payload === "string" && payload.trim()
         ? payload
-        : payload?.detail || payload?.message || "Request failed.";
+        : payload?.detail || payload?.error || payload?.message || "Request failed.";
     const error = new Error(
       typeof message === "string" ? message : JSON.stringify(message),
     );
