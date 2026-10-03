@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 import unittest
@@ -8,7 +7,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from inference_service.inference import FEATURE_NAMES, InferenceError, LockedInferenceEngine, parse_star_counts
+from inference_service.inference import FEATURE_NAMES, LOCK_SHA256, InferenceError, LockedInferenceEngine, lock_fingerprint, parse_star_counts
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,6 +59,28 @@ class InferenceIntegrationTests(unittest.TestCase):
             self.assertTrue(0.0 <= prediction["tumor_probability"] <= 1.0)
         self.assertIn("all_models_agree", result["agreement"])
 
+    def test_report_sections_mirror_locked_predictions(self):
+        result = self.engine.infer(fixture_bytes(), "demo", "BRCA-DEMO-001", "Primary Tumor")
+        classical = result["predictions"]["classical_logistic"]
+        candidate_a = result["predictions"]["quantum_candidate_a_mean"]
+        self.assertEqual(result["prediction"]["label"], classical["predicted_class"])
+        self.assertEqual(result["prediction"]["tumor_probability"], classical["tumor_probability"])
+        self.assertEqual(result["quantum"]["tumor_probability"], candidate_a["tumor_probability"])
+        self.assertEqual(result["quantum"]["scaled_features"], [row["quantum_angle"] for row in result["biomarkers"]])
+        self.assertEqual(result["quantum"]["qubits"], 8)
+        self.assertEqual(result["quantum"]["shots"], 2048)
+        self.assertEqual(result["input_metrics"]["biomarkers_used"], 8)
+        self.assertGreater(result["input_metrics"]["genes_detected"], 8)
+        self.assertEqual(list(result["input_metrics"]["biomarker_values_used"]), list(FEATURE_NAMES))
+        models = result["benchmark"]["models"]
+        self.assertEqual(set(models), {"logistic_regression", "quantum_candidate_a_mean", "quantum_ae_balanced"})
+        self.assertAlmostEqual(models["quantum_candidate_a_mean"]["accuracy"], 0.959184)
+        self.assertAlmostEqual(models["quantum_candidate_a_mean"]["f1"], 2 * 219 / (2 * 219 + 7 + 3))
+        importances = [row["importance"] for row in result["biomarkers"]]
+        self.assertEqual(max(importances), 1.0)
+        self.assertTrue(all(0.0 <= value <= 1.0 for value in importances))
+        self.assertEqual([row["gene"] for row in result["biomarkers"]], list(FEATURE_NAMES))
+
     def test_demo_pool_is_training_only_and_hashes_are_unchanged(self):
         pool = json.loads((ROOT / "public_dataset_pool/catalog.json").read_text())
         self.assertEqual(len(pool), 15)
@@ -68,8 +89,8 @@ class InferenceIntegrationTests(unittest.TestCase):
         self.assertTrue(all(item["split"] == "train" for item in pool))
         self.assertTrue(all((ROOT / "public_dataset_pool/raw" / f"{item['demo_id']}.rna_seq.augmented_star_gene_counts.tsv").is_file() for item in pool))
         lock = ROOT / "configs/final_model_lock.json"
-        expected = hashlib.sha256(lock.read_bytes()).hexdigest()
-        self.assertEqual(expected, self.engine.lock_hash)
+        self.assertEqual(lock_fingerprint(lock), LOCK_SHA256)
+        self.assertEqual(self.engine.lock_hash, LOCK_SHA256)
         self.assertFalse((ROOT / "reports/final_test_metrics.json").exists())
 
 

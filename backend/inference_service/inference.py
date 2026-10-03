@@ -16,6 +16,8 @@ import dill
 import joblib
 import numpy as np
 
+from .report import biomarker_importance, build_report_sections
+
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = ROOT / "configs/final_model_lock.json"
@@ -23,6 +25,9 @@ FEATURE_NAMES = ("FABP4", "LEP", "COL10A1", "CHRDL1", "SCARA5", "SAA1", "SFRP1",
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 ALLOWED_SUFFIX = ".rna_seq.augmented_star_gene_counts.tsv"
 SUMMARY_ROWS = {"N_unmapped", "N_multimapping", "N_noFeature", "N_ambiguous"}
+# Canonical fingerprint of configs/final_model_lock.json, computed over CRLF line
+# endings (the form in which the lock was created) so it is identical on every OS.
+LOCK_SHA256 = "1a4f71c7b619297537068f7dfd37c12a1725d56f5d5a80f9b24125421689f50a"
 
 
 class InferenceError(ValueError):
@@ -37,6 +42,11 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def lock_fingerprint(path: Path) -> str:
+    content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    return hashlib.sha256(content).hexdigest()
+
+
 def _parse_numeric(value: str, gene_name: str) -> float:
     try:
         number = float(value)
@@ -49,6 +59,11 @@ def _parse_numeric(value: str, gene_name: str) -> float:
 
 def parse_star_counts(content: bytes | str) -> dict[str, float]:
     """Extract exactly one non-summary row for each locked biomarker."""
+    return _parse_star_counts(content)[0]
+
+
+def _parse_star_counts(content: bytes | str) -> tuple[dict[str, float], int]:
+    """Return the locked biomarker TPMs and the number of non-summary gene rows."""
     text = content.decode("utf-8-sig") if isinstance(content, bytes) else content
     lines = text.splitlines()
     header_index = next(
@@ -61,9 +76,13 @@ def parse_star_counts(content: bytes | str) -> dict[str, float]:
     if not reader.fieldnames or "gene_name" not in reader.fieldnames or "tpm_unstranded" not in reader.fieldnames:
         raise InferenceError("STAR-counts file is missing required columns.")
     found: dict[str, float] = {}
+    genes_detected = 0
     for row in reader:
         gene_name = (row.get("gene_name") or "").strip()
-        if not gene_name or gene_name in SUMMARY_ROWS or gene_name not in FEATURE_NAMES:
+        if not gene_name or gene_name in SUMMARY_ROWS:
+            continue
+        genes_detected += 1
+        if gene_name not in FEATURE_NAMES:
             continue
         if gene_name in found:
             raise InferenceError(f"Duplicate biomarker symbol: {gene_name}.")
@@ -71,7 +90,7 @@ def parse_star_counts(content: bytes | str) -> dict[str, float]:
     missing = [gene for gene in FEATURE_NAMES if gene not in found]
     if missing:
         raise InferenceError(f"Missing locked biomarkers: {', '.join(missing)}")
-    return {gene: found[gene] for gene in FEATURE_NAMES}
+    return {gene: found[gene] for gene in FEATURE_NAMES}, genes_detected
 
 
 def _class_name(value: int) -> str:
@@ -84,7 +103,9 @@ class LockedInferenceEngine:
         self.lock = json.loads(self.lock_path.read_text(encoding="utf-8"))
         if list(self.lock["data"]["feature_names"]) != list(FEATURE_NAMES):
             raise RuntimeError("Locked feature order is not the required eight-gene contract.")
-        self.lock_hash = sha256_file(self.lock_path)
+        self.lock_hash = lock_fingerprint(self.lock_path)
+        if self.lock_hash != LOCK_SHA256:
+            raise RuntimeError("Model lock fingerprint does not match the immutable lock.")
         runtime_manifest_path = ROOT / "runtime/config/runtime_model_manifest.json"
         self.runtime_manifest = json.loads(runtime_manifest_path.read_text(encoding="utf-8")) if runtime_manifest_path.is_file() else None
         self.prepared_dir = ROOT / self.lock["data"]["prepared_data_dir"]
@@ -94,6 +115,7 @@ class LockedInferenceEngine:
         self.classical_model = self._load_hashed({"path": primary["model_path"], "sha256": primary["model_sha256"]})
         self.a_models = [self._load_hashed(item) for item in self.lock["models"]["primary_quantum"]["model_files"]]
         self.e_models = [self._load_hashed(item) for item in self.lock["models"]["secondary_quantum"]["candidate_e_model_files"]]
+        self.biomarker_importance = biomarker_importance(self.classical_model.coef_)
         self.demo_samples = self._load_demo_pool()
         self.inference_lock = threading.RLock()
 
@@ -125,7 +147,16 @@ class LockedInferenceEngine:
         return {item["demo_id"]: item for item in pool}
 
     def model_info(self) -> dict:
-        return {"lock_sha256": self.lock_hash, "feature_count": len(FEATURE_NAMES), "feature_names": list(FEATURE_NAMES), "endpoints": [self.lock["models"][key]["label"] for key in ("overall_primary", "primary_quantum", "secondary_quantum")]}
+        models = self.lock["models"]
+        return {
+            "lock_sha256": self.lock_hash,
+            "feature_count": len(FEATURE_NAMES),
+            "feature_names": list(FEATURE_NAMES),
+            "endpoints": [models[key]["label"] for key in ("overall_primary", "primary_quantum", "secondary_quantum")],
+            "thresholds": {"classical_logistic": models["overall_primary"]["decision_threshold"], "quantum_candidate_a_mean": models["primary_quantum"]["decision_threshold"], "quantum_ae_balanced": models["secondary_quantum"]["decision_threshold"]},
+            "validation_metrics": {"quantum_candidate_a_mean": models["primary_quantum"].get("validation_metrics"), "quantum_ae_balanced": models["secondary_quantum"].get("validation_metrics")},
+            "test_set_status": self.lock.get("test_set_status"),
+        }
 
     def demo_list(self) -> list[dict]:
         return [{key: item[key] for key in ("demo_id", "display_name", "sample_type", "split", "file_sha256", "size_bytes", "biomarkers_available")} for item in self.demo_samples.values()]
@@ -133,7 +164,7 @@ class LockedInferenceEngine:
     def infer(self, content: bytes, source_type: str, display_name: str, known_label: str | None = None) -> dict:
         started = time.perf_counter()
         extraction_started = time.perf_counter()
-        raw_values = parse_star_counts(content)
+        raw_values, genes_detected = _parse_star_counts(content)
         extraction_ms = (time.perf_counter() - extraction_started) * 1000
         preprocessing_started = time.perf_counter()
         raw = np.asarray([raw_values[gene] for gene in FEATURE_NAMES], dtype=np.float64).reshape(1, 8)
@@ -154,8 +185,10 @@ class LockedInferenceEngine:
         quantum_started = time.perf_counter()
         with self.inference_lock:
             a_seed = [float(model.predict_proba(quantum_angles)[0, 1]) for model in self.a_models]
+            candidate_a_ms = (time.perf_counter() - quantum_started) * 1000
             e_seed = [float(model.predict_proba(quantum_angles)[0, 1]) for model in self.e_models]
         quantum_ms = (time.perf_counter() - quantum_started) * 1000
+        candidate_e_ms = quantum_ms - candidate_a_ms
         a_mean = float(np.mean(a_seed))
         a_median = float(np.median(a_seed))
         e_median = float(np.median(e_seed))
@@ -169,7 +202,8 @@ class LockedInferenceEngine:
             if not 0 <= item["tumor_probability"] <= 1 or not math.isfinite(item["tumor_probability"]):
                 raise RuntimeError("Model produced a non-finite probability.")
         classes = [item["predicted_class"] for item in predictions.values()]
-        result = {"request_id": str(uuid.uuid4()), "source": {"type": source_type, "display_name": display_name}, "model_lock": {"lock_sha256": self.lock_hash, "feature_count": 8}, "biomarkers": [{"gene_name": gene, "raw_tpm": float(raw_values[gene]), "log2_tpm_plus_1": float(log_values[0, index]), "classical_scaled_value": float(classical_scaled[0, index]), "quantum_angle": float(quantum_angles[0, index])} for index, gene in enumerate(FEATURE_NAMES)], "predictions": predictions, "agreement": {"all_models_agree": len(set(classes)) == 1, "summary": "All locked endpoints agree." if len(set(classes)) == 1 else "Locked endpoints disagree; review the endpoint-specific probabilities."}, "warnings": warnings, "timing_ms": {"extraction": round(extraction_ms, 2), "preprocessing": round(preprocessing_ms, 2), "classical_inference": round(classical_ms, 2), "quantum_inference": round(quantum_ms, 2), "total": round((time.perf_counter() - started) * 1000, 2)}}
+        result = {"request_id": str(uuid.uuid4()), "source": {"type": source_type, "display_name": display_name}, "model_lock": {"lock_sha256": self.lock_hash, "feature_count": 8}, "biomarkers": [{"gene_name": gene, "raw_tpm": float(raw_values[gene]), "log2_tpm_plus_1": float(log_values[0, index]), "classical_scaled_value": float(classical_scaled[0, index]), "quantum_angle": float(quantum_angles[0, index]), "gene": gene, "value": float(log_values[0, index]), **self.biomarker_importance[index]} for index, gene in enumerate(FEATURE_NAMES)], "predictions": predictions, "agreement": {"all_models_agree": len(set(classes)) == 1, "summary": "All locked endpoints agree." if len(set(classes)) == 1 else "Locked endpoints disagree; review the endpoint-specific probabilities."}, "warnings": warnings, "timing_ms": {"extraction": round(extraction_ms, 2), "preprocessing": round(preprocessing_ms, 2), "classical_inference": round(classical_ms, 2), "quantum_inference": round(quantum_ms, 2), "total": round((time.perf_counter() - started) * 1000, 2)}}
         if known_label:
             result["source"]["known_research_label"] = known_label
+        result.update(build_report_sections(self.lock, result, genes_detected, {"candidate_a": round(candidate_a_ms, 2), "candidate_e": round(candidate_e_ms, 2)}))
         return result

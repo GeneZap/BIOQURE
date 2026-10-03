@@ -22,6 +22,8 @@ The locked feature order is `FABP4`, `LEP`, `COL10A1`, `CHRDL1`, `SCARA5`, `SAA1
 
 `1a4f71c7b619297537068f7dfd37c12a1725d56f5d5a80f9b24125421689f50a`
 
+The fingerprint is computed over the lock JSON with line endings normalised to CRLF, so it is identical on Windows, Linux and Docker checkouts. The service refuses to start if it differs.
+
 ## Local development
 
 Install the pinned backend dependencies from `backend/requirements-runtime.txt`. Start the backend with Python 3.13 and run the frontend with `npm ci` followed by `npm run dev` in `frontend/`. Set `VITE_API_BASE_URL` for the frontend and `BIOQURE_CORS_ORIGINS` for the backend.
