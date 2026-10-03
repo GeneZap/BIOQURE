@@ -59,6 +59,12 @@ export default function ReportMetrics({ result = {}, metrics = null }) {
     metrics?.selected_model ??
     'Not available'
 
+  const selectedKey =
+    prediction.selected_model_key ??
+    result?.selected_model_key ??
+    metrics?.selected_model_key ??
+    null
+
   const label =
     prediction.label ??
     result?.label ??
@@ -179,8 +185,9 @@ export default function ReportMetrics({ result = {}, metrics = null }) {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {String(key).toLowerCase() ===
-                      String(selectedModel).toLowerCase() && (
+                    {(key === selectedKey ||
+                      String(key).toLowerCase() ===
+                        String(selectedModel).toLowerCase()) && (
                       <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-cyan-200">
                         Selected
                       </span>
@@ -225,6 +232,7 @@ export default function ReportMetrics({ result = {}, metrics = null }) {
                   <Metric
                     label="Brier"
                     value={model?.brier_score}
+                    score
                   />
                 </div>
               </article>
@@ -240,8 +248,14 @@ export default function ReportMetrics({ result = {}, metrics = null }) {
   )
 }
 
-function Metric({ label, value }) {
-  const number = Number(value)
+function Metric({ label, value, score = false }) {
+  const missing = value === null || value === undefined || value === ''
+  const number = missing ? NaN : Number(value)
+  const formatted = !Number.isFinite(number)
+    ? '—'
+    : score
+      ? number.toFixed(3)
+      : `${(number * 100).toFixed(1)}%`
 
   return (
     <div className="rounded-xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] px-3 py-3">
@@ -250,9 +264,7 @@ function Metric({ label, value }) {
       </p>
 
       <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-[var(--gz-heading)]">
-        {Number.isFinite(number)
-          ? `${(number * 100).toFixed(1)}%`
-          : '—'}
+        {formatted}
       </p>
     </div>
   )

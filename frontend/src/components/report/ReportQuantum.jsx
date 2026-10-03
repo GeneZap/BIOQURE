@@ -39,6 +39,8 @@ export default function ReportQuantum({ result = {}, quantum = null }) {
 
   const measurements = data?.measurements || {}
 
+  const angleMax = Number(data?.angle_bounds?.max) > 0 ? Number(data.angle_bounds.max) : 1
+
   const measurementEntries = Object.entries(measurements)
 
   const shots = Number(data?.shots)
@@ -156,7 +158,7 @@ export default function ReportQuantum({ result = {}, quantum = null }) {
                     <div
                       className="h-full rounded-full bg-cyan-300"
                       style={{
-                        width: `${clamp01(numeric) * 100}%`,
+                        width: `${clamp01(numeric / angleMax) * 100}%`,
                       }}
                     />
                   </div>

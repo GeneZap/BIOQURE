@@ -12,6 +12,7 @@ import numpy as np
 
 
 PRIMARY_MODEL_NAME = "Logistic regression (locked primary)"
+PRIMARY_MODEL_KEY = "logistic_regression"
 FEATURE_MAP_NAMES = {"zz_feature_map": "ZZFeatureMap"}
 ANSATZ_NAMES = {"real_amplitudes": "RealAmplitudes"}
 METRIC_SOURCE = "Validation split recorded in the immutable model lock; the held-out test split has not been evaluated."
@@ -83,6 +84,7 @@ def build_report_sections(lock: dict, result: dict, genes_detected: int, quantum
         "confidence": probability if is_tumor else 1.0 - probability,
         "threshold": classical["threshold"],
         "selected_model": PRIMARY_MODEL_NAME,
+        "selected_model_key": PRIMARY_MODEL_KEY,
     }
 
     quantum_probability = candidate_a["tumor_probability"]
@@ -97,6 +99,7 @@ def build_report_sections(lock: dict, result: dict, genes_detected: int, quantum
         "qubits": len(result["biomarkers"]),
         "encoding": "MinMax angle encoding to [0, pi/2] (scaler fitted on the training split)",
         "scaled_features": [row["quantum_angle"] for row in result["biomarkers"]],
+        "angle_bounds": lock["data"]["quantum_angle_bounds"],
         "tumor_probability": quantum_probability,
         "probabilities": {"tumor": quantum_probability, "normal": 1.0 - quantum_probability},
         "predicted_class": candidate_a["predicted_class"],
@@ -111,6 +114,7 @@ def build_report_sections(lock: dict, result: dict, genes_detected: int, quantum
 
     benchmark = {
         "selected_model": PRIMARY_MODEL_NAME,
+        "selected_model_key": PRIMARY_MODEL_KEY,
         "outcome": "classical",
         "best_classical_model": "Logistic regression",
         "metric_source": METRIC_SOURCE,
@@ -153,6 +157,7 @@ def build_report_sections(lock: dict, result: dict, genes_detected: int, quantum
     sections = {
         "prediction": prediction,
         "selected_model": PRIMARY_MODEL_NAME,
+        "selected_model_key": PRIMARY_MODEL_KEY,
         "quantum_used": True,
         "classical_models": {
             "logistic_regression": {

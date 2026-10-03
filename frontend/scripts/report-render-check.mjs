@@ -10,11 +10,17 @@ import { createServer } from "vite";
 
 const fixtureDir = process.env.REPORT_FIXTURE_DIR || "/tmp";
 const expected = {
-  ReportMetrics: ["Logistic regression", "Selected model"],
-  ReportBenchmark: ["Candidate A", "95.9%"],
+  ReportMetrics: ["Logistic regression", "Selected model", "Selected "],
+  ReportBenchmark: ["Candidate A", "95.9%", "Not evaluated", "Selected"],
   ReportQuantum: ["ZZFeatureMap", "2,048"],
   ReportBiomarkers: ["FABP4", "LEP", "COL10A1", "CHRDL1", "SCARA5", "SAA1", "SFRP1", "LPL"],
   ReportInputMetrics: ["60,660", "COL10A1"],
+};
+
+// Text that must never appear: unevaluated checks shown as failed, missing logistic metrics shown as 0.
+const forbidden = {
+  ReportBenchmark: ["Not passed", "Not demonstrated", "0.0%", "0.000"],
+  ReportMetrics: ["0.0% AUC", "Accuracy 0.0%"],
 };
 
 const server = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "error" });
@@ -28,6 +34,7 @@ try {
       const text = renderToStaticMarkup(React.createElement(Component, props)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
       if (process.env.DUMP === name) console.log(text);
       const missing = needles.filter((needle) => !text.includes(needle));
+      for (const bad of forbidden[name] || []) if (text.includes(bad)) missing.push(`forbidden "${bad}"`);
       if (missing.length) failed = true;
       console.log(`${demo} ${name}: ${missing.length ? `MISSING ${missing.join(", ")}` : "ok"}`);
     }

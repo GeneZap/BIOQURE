@@ -1,16 +1,27 @@
 import {
   AlertCircle,
   CheckCircle2,
+  CircleDashed,
   Clock3,
   Gauge,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
 
-function clamp01(value) {
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null
   const number = Number(value)
-  if (!Number.isFinite(number)) return null
-  return Math.min(1, Math.max(0, number))
+  return Number.isFinite(number) ? number : null
+}
+
+function clamp01(value) {
+  const number = toNumber(value)
+  return number == null ? null : Math.min(1, Math.max(0, number))
+}
+
+function firstBoolean(...values) {
+  const found = values.find((value) => typeof value === 'boolean')
+  return found === undefined ? null : found
 }
 
 function formatPercent(value, digits = 1) {
@@ -19,8 +30,8 @@ function formatPercent(value, digits = 1) {
 }
 
 function formatScore(value, digits = 3) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number.toFixed(digits) : '—'
+  const number = toNumber(value)
+  return number == null ? '—' : number.toFixed(digits)
 }
 
 function modelDisplayName(key, model = {}) {
@@ -53,6 +64,27 @@ function outcomeLabel(outcome) {
 }
 
 function CheckCard({ label, passed, description }) {
+  if (passed == null) {
+    return (
+      <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] p-4">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--gz-surface)]">
+            <CircleDashed className="size-5 text-[var(--gz-muted)]" aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[var(--gz-heading)]">{label}</p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[var(--gz-muted)]">
+              Not evaluated
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--gz-muted)]">
+              The backend did not report this check for the current result.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={[
@@ -139,13 +171,15 @@ export default function ReportBenchmark({ benchmark = {}, result = null }) {
       result?.prediction?.selected_model
   )
 
-  const robustness =
-    checks?.quantum_robust === true ||
-    checks?.robust === true
+  const robustness = firstBoolean(checks?.quantum_robust, checks?.robust)
 
-  const improves =
-    checks?.quantum_improves === true ||
-    checks?.improves === true
+  const improves = firstBoolean(checks?.quantum_improves, checks?.improves)
+
+  const selectedKey =
+    benchmark?.selected_model_key ??
+    result?.prediction?.selected_model_key ??
+    result?.selected_model_key ??
+    null
 
   const calibrationMetric =
     calibration?.metric ||
@@ -230,10 +264,18 @@ export default function ReportBenchmark({ benchmark = {}, result = null }) {
           <p
             className={[
               'mt-3 text-lg font-bold',
-              robustness ? 'text-emerald-300' : 'text-rose-300',
+              robustness == null
+                ? 'text-[var(--gz-muted)]'
+                : robustness
+                  ? 'text-emerald-300'
+                  : 'text-rose-300',
             ].join(' ')}
           >
-            {robustness ? 'Passed' : 'Not passed'}
+            {robustness == null
+              ? 'Not evaluated'
+              : robustness
+                ? 'Passed'
+                : 'Not passed'}
           </p>
 
           <p className="mt-1 text-xs text-[var(--gz-muted)]">
@@ -250,10 +292,18 @@ export default function ReportBenchmark({ benchmark = {}, result = null }) {
           <p
             className={[
               'mt-3 text-lg font-bold',
-              improves ? 'text-emerald-300' : 'text-amber-300',
+              improves == null
+                ? 'text-[var(--gz-muted)]'
+                : improves
+                  ? 'text-emerald-300'
+                  : 'text-amber-300',
             ].join(' ')}
           >
-            {improves ? 'Demonstrated' : 'Not demonstrated'}
+            {improves == null
+              ? 'Not evaluated'
+              : improves
+                ? 'Demonstrated'
+                : 'Not demonstrated'}
           </p>
 
           <p className="mt-1 text-xs text-[var(--gz-muted)]">
@@ -307,8 +357,9 @@ export default function ReportBenchmark({ benchmark = {}, result = null }) {
               <tbody>
                 {modelEntries.map(([key, model]) => {
                   const isSelected =
+                    key === selectedKey ||
                     String(key).toLowerCase() ===
-                    String(selectedModel || '').toLowerCase()
+                      String(selectedModel || '').toLowerCase()
 
                   return (
                     <tr
