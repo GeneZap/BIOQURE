@@ -88,6 +88,40 @@ export async function getBIOQUREStatus() {
   return request("/health", { method: "GET" });
 }
 
+/**
+ * Downloads the underlying dataset file to the user's computer.
+ *
+ * NOTE: the exact backend route below ("/demo-samples/{id}/download") is a
+ * best guess based on the "/demo-samples" listing endpoint — this project's
+ * FastAPI backend code wasn't available to confirm the real route name.
+ * If this 404s in the browser console, check the backend's route
+ * definitions (likely in a file like routers/demo_samples.py or similar)
+ * for the actual download endpoint and update the path below to match.
+ */
+export async function savePublicDataset(datasetId, fileName) {
+  if (!datasetId) throw new Error("Dataset ID is required.");
+
+  const response = await fetch(
+    `${BASE}/demo-samples/${encodeURIComponent(datasetId)}/download`,
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Dataset download failed (status ${response.status}). Check the backend route for downloading demo sample files.`,
+    );
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName || `${datasetId}.tsv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export async function uploadDataset(file, onProgress) {
   if (!file) throw new Error("Choose a STAR-counts TSV file.");
   if (!file.name.endsWith(".rna_seq.augmented_star_gene_counts.tsv")) {

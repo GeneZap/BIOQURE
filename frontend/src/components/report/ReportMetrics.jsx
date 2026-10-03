@@ -1,259 +1,144 @@
-import {
-  Activity,
-  CheckCircle2,
-  Gauge,
-  ShieldCheck,
-  Target,
-} from 'lucide-react'
+import React from "react";
 
-function clamp01(value) {
-  const number = Number(value)
-  if (!Number.isFinite(number)) return 0
-  return Math.min(1, Math.max(0, number))
+function firstDefined(...values) {
+  return values.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+  );
 }
 
-function percent(value, digits = 1) {
-  return `${(clamp01(value) * 100).toFixed(digits)}%`
-}
-
-function modelName(key, model = {}) {
-  if (model?.name) return model.name
-
-  const names = {
-    logistic_regression: 'Logistic Regression',
-    rbf_svm: 'RBF-SVM',
-    xgboost: 'XGBoost',
-    mlp: 'MLP',
-    vqc: 'VQC',
+function formatPercent(value) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return "—";
   }
 
-  return names[key] || key
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return String(value);
+  }
+
+  const percentage =
+    number >= 0 && number <= 1
+      ? number * 100
+      : number;
+
+  return `${percentage.toFixed(1)}%`;
 }
 
-function probabilityFromModel(model) {
-  if (!model) return null
-
-  const value =
-    model.tumour_probability ??
-    model.tumor_probability ??
-    model.probability ??
-    model.predicted_probability
-
-  const number = Number(value)
-
-  return Number.isFinite(number) ? clamp01(number) : null
-}
-
-export default function ReportMetrics({ result = {}, metrics = null }) {
-  const prediction = result?.prediction || {}
-
-  const classicalModels =
-    result?.classical_models ||
-    result?.models ||
-    metrics?.classical_models ||
-    {}
-
-  const selectedModel =
-    prediction.selected_model ??
-    result?.selected_model ??
-    metrics?.selected_model ??
-    'Not available'
-
-  const label =
-    prediction.label ??
-    result?.label ??
-    'Not available'
-
-  const tumourProbability =
-    prediction.tumour_probability ??
-    prediction.tumor_probability ??
-    result?.tumour_probability ??
-    result?.tumor_probability
-
-  const confidence =
-    prediction.confidence ??
-    metrics?.confidence ??
-    result?.confidence
-
-  const entries = Object.entries(classicalModels)
-
+function MetricCard({
+  label,
+  value,
+  description,
+}) {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-surface)] p-5">
-        <div className="flex items-start gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/10 ring-1 ring-cyan-400/15">
-            <Activity
-              className="size-5 text-[var(--gz-cyan-ui)]"
-              aria-hidden
-            />
-          </div>
-
-          <div>
-            <p className="gz-label">Model metrics</p>
-
-            <h2 className="mt-1 text-xl font-bold tracking-tight gz-heading">
-              Classical machine-learning results
-            </h2>
-
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--gz-muted)]">
-              Model outputs and performance metrics supplied by the BIOQURE
-              backend for the current research sample.
-            </p>
-          </div>
-        </div>
+    <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-4">
+      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+        {label}
       </div>
 
-      {/* Prediction summary */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] p-5">
-          <div className="flex items-center gap-2">
-            <Target className="size-4 text-cyan-300" aria-hidden />
-            <span className="gz-label">Prediction</span>
-          </div>
-
-          <p className="mt-3 text-2xl font-bold text-[var(--gz-heading)]">
-            {label}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] p-5">
-          <div className="flex items-center gap-2">
-            <Gauge className="size-4 text-cyan-300" aria-hidden />
-            <span className="gz-label">Tumour probability</span>
-          </div>
-
-          <p className="mt-3 font-mono text-2xl font-bold text-[var(--gz-cyan-ui)]">
-            {tumourProbability != null
-              ? percent(tumourProbability)
-              : '—'}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] p-5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="size-4 text-cyan-300" aria-hidden />
-            <span className="gz-label">Selected model</span>
-          </div>
-
-          <p className="mt-3 text-lg font-bold text-[var(--gz-heading)]">
-            {selectedModel}
-          </p>
-
-          {confidence != null && (
-            <p className="mt-1 text-xs text-[var(--gz-muted)]">
-              Display confidence:{' '}
-              <span className="font-mono text-[var(--gz-body)]">
-                {percent(confidence)}
-              </span>
-            </p>
-          )}
-        </div>
+      <div className="mt-2 break-words text-lg font-extrabold text-[var(--bq-text)]">
+        {value ?? "—"}
       </div>
 
-      {/* Model cards */}
-      {entries.length > 0 ? (
-        <section className="space-y-3">
-          {entries.map(([key, model]) => {
-            const probability = probabilityFromModel(model)
-
-            return (
-              <article
-                key={key}
-                className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-surface)] p-5"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold text-[var(--gz-heading)]">
-                      {modelName(key, model)}
-                    </h3>
-
-                    {probability != null && (
-                      <p className="mt-1 text-xs text-[var(--gz-muted)]">
-                        Tumour probability:{' '}
-                        <span className="font-mono text-[var(--gz-cyan-ui)]">
-                          {percent(probability)}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {String(key).toLowerCase() ===
-                      String(selectedModel).toLowerCase() && (
-                      <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-wider text-cyan-200">
-                        Selected
-                      </span>
-                    )}
-
-                    <CheckCircle2
-                      className="size-5 text-emerald-300"
-                      aria-hidden
-                    />
-                  </div>
-                </div>
-
-                {probability != null && (
-                  <div className="mt-4">
-                    <div className="h-2.5 overflow-hidden rounded-full bg-[var(--gz-field-bg)] ring-1 ring-[var(--gz-border)]">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-teal-400 to-cyan-300"
-                        style={{
-                          width: `${probability * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Metric
-                    label="Accuracy"
-                    value={model?.accuracy}
-                  />
-
-                  <Metric
-                    label="AUC"
-                    value={model?.auc}
-                  />
-
-                  <Metric
-                    label="F1"
-                    value={model?.f1}
-                  />
-
-                  <Metric
-                    label="Brier"
-                    value={model?.brier_score}
-                  />
-                </div>
-              </article>
-            )
-          })}
-        </section>
-      ) : (
-        <div className="rounded-2xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] p-6 text-sm text-[var(--gz-muted)]">
-          No classical model metrics are available in the current result.
+      {description && (
+        <div className="mt-1 text-xs leading-5 text-[var(--bq-text-dim)]">
+          {description}
         </div>
       )}
     </div>
-  )
+  );
 }
 
-function Metric({ label, value }) {
-  const number = Number(value)
+export default function ReportMetrics({
+  analysis,
+  dataset,
+}) {
+  const prediction = firstDefined(
+    analysis?.prediction?.label,
+    analysis?.prediction?.class_label,
+    analysis?.prediction?.prediction,
+    analysis?.predicted_label,
+    analysis?.predicted_class,
+    analysis?.label,
+    typeof analysis?.prediction === "string"
+      ? analysis.prediction
+      : null
+  );
+
+  const confidence = firstDefined(
+    analysis?.prediction?.probability,
+    analysis?.prediction?.confidence,
+    analysis?.prediction?.score,
+    analysis?.probability,
+    analysis?.confidence,
+    analysis?.score
+  );
+
+  const selectedModel = firstDefined(
+    analysis?.model_selection?.selected_model,
+    analysis?.model_selection?.model,
+    analysis?.selected_model,
+    analysis?.model,
+    analysis?.inference?.selected_model
+  );
+
+  const quantumUsed = firstDefined(
+    analysis?.quantum?.used,
+    analysis?.quantum_used,
+    analysis?.runtime?.quantum_used,
+    analysis?.inference?.quantum_used
+  );
+
+  const fallbackUsed = firstDefined(
+    analysis?.fallback_used,
+    analysis?.runtime?.fallback_used,
+    analysis?.inference?.fallback_used
+  );
 
   return (
-    <div className="rounded-xl border border-[var(--gz-border)] bg-[var(--gz-field-bg)] px-3 py-3">
-      <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--gz-muted)]">
-        {label}
-      </p>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <MetricCard
+        label="Prediction"
+        value={prediction || "—"}
+        description="Returned model classification"
+      />
 
-      <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-[var(--gz-heading)]">
-        {Number.isFinite(number)
-          ? `${(number * 100).toFixed(1)}%`
-          : '—'}
-      </p>
+      <MetricCard
+        label="Confidence"
+        value={formatPercent(confidence)}
+        description="Reported inference probability"
+      />
+
+      <MetricCard
+        label="Selected model"
+        value={selectedModel || "—"}
+        description="Model selected from validation metadata"
+      />
+
+      <MetricCard
+        label="Quantum path"
+        value={
+          quantumUsed === true
+            ? "Used"
+            : quantumUsed === false
+              ? "Not used"
+              : "—"
+        }
+        description={
+          fallbackUsed === true
+            ? "Classical fallback was used"
+            : dataset?.id
+              ? `Dataset: ${dataset.id}`
+              : "Runtime quantum status"
+        }
+      />
     </div>
-  )
+  );
 }

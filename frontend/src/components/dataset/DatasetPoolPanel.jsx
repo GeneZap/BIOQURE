@@ -4,7 +4,7 @@ import {
   getBIOQUREStatus,
   getPublicDataset,
   listPublicDatasets,
-  uploadDataset,
+  savePublicDataset,
 } from "../../services/datasetsApi.js";
 
 /* =========================================================
@@ -168,17 +168,17 @@ function getStatusTone(status) {
 function Badge({ children, tone = "neutral" }) {
   const tones = {
     neutral:
-      "border-slate-200 bg-slate-50 text-slate-600",
+      "border-[var(--bq-border)] bg-[var(--bq-surface-alt)] text-[var(--bq-text-dim)]",
     success:
-      "border-emerald-200 bg-emerald-50 text-emerald-700",
+      "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
     warning:
-      "border-amber-200 bg-amber-50 text-amber-700",
+      "border-amber-400/30 bg-amber-400/10 text-amber-300",
     error:
-      "border-red-200 bg-red-50 text-red-700",
+      "border-red-400/30 bg-red-400/10 text-red-300",
     blue:
-      "border-blue-200 bg-blue-50 text-blue-700",
+      "border-blue-400/30 bg-blue-400/10 text-blue-300",
     purple:
-      "border-violet-200 bg-violet-50 text-violet-700",
+      "border-violet-400/30 bg-violet-400/10 text-violet-300",
   };
 
   return (
@@ -192,11 +192,11 @@ function Badge({ children, tone = "neutral" }) {
 
 function Stat({ label, value }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+    <div className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface)] px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
         {label}
       </div>
-      <div className="mt-0.5 text-sm font-bold text-slate-800">
+      <div className="mt-0.5 text-sm font-bold text-[var(--bq-text)]">
         {value}
       </div>
     </div>
@@ -223,12 +223,10 @@ export default function DatasetPoolPanel({
   const [analysis, setAnalysis] = useState(null);
 
   const [search, setSearch] = useState("");
-  const [sampleType, setSampleType] = useState("All");
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [downloading, setDownloading] = useState(false);
 
   const [error, setError] = useState("");
   const [analysisError, setAnalysisError] = useState("");
@@ -343,8 +341,11 @@ export default function DatasetPoolPanel({
   const filteredDatasets = useMemo(() => {
     const query = search.trim().toLowerCase();
 
+    if (!query) {
+      return datasets;
+    }
+
     return datasets.filter((dataset) => {
-      if (sampleType !== "All" && dataset.sample_type !== sampleType) return false;
       const searchable = [
         dataset.id,
         dataset.name,
@@ -361,30 +362,7 @@ export default function DatasetPoolPanel({
 
       return searchable.includes(query);
     });
-  }, [datasets, search, sampleType]);
-
-  function chooseRandomSample() {
-    const pool = filteredDatasets.length ? filteredDatasets : datasets;
-    const sample = pool[Math.floor(Math.random() * pool.length)];
-    if (sample) handleSelect(sample);
-  }
-
-  async function handleUpload(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setError("");
-    try {
-      const result = await uploadDataset(file, setUploadProgress);
-      setAnalysis(result);
-      onAnalysisComplete?.(result, { id: file.name, name: file.name, sample_type: "Manual upload" });
-    } catch (err) {
-      setError(err?.message || "Manual upload failed.");
-    } finally {
-      setUploading(false);
-      event.target.value = "";
-    }
-  }
+  }, [datasets, search]);
 
   /* -------------------------------------------------------
      Select dataset
@@ -432,6 +410,28 @@ export default function DatasetPoolPanel({
   /* -------------------------------------------------------
      Download
      ------------------------------------------------------- */
+
+  async function handleDownload() {
+    if (!selectedId || downloading) {
+      return;
+    }
+
+    setDownloading(true);
+
+    try {
+      await savePublicDataset(
+        selectedId,
+        selectedDataset?.fileName
+      );
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Dataset download failed."
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   /* -------------------------------------------------------
      Analysis helpers
@@ -506,15 +506,15 @@ export default function DatasetPoolPanel({
   if (compact) {
     return (
       <div
-        className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${className}`}
+        className={`rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-4 ${className}`}
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
               BIOQURE dataset
             </div>
 
-            <div className="mt-1 text-sm font-bold text-slate-800">
+            <div className="mt-1 text-sm font-bold text-[var(--bq-text)]">
               {selectedDataset?.name ||
                 selectedId ||
                 "No dataset selected"}
@@ -558,9 +558,10 @@ export default function DatasetPoolPanel({
 
         <button
           type="button"
+          data-tour="run-analysis"
           onClick={handleAnalyze}
           disabled={!selectedId || analyzing}
-          className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-3 w-full rounded-xl bg-[var(--bq-accent)] px-4 py-2.5 text-sm font-semibold text-[#06201c] transition hover:bg-[var(--bq-accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {analyzing ? "Analyzing…" : "Run BIOQURE Analysis"}
         </button>
@@ -574,14 +575,14 @@ export default function DatasetPoolPanel({
 
   return (
     <section
-      className={`rounded-3xl border border-slate-200 bg-slate-50 shadow-sm ${className}`}
+      className={`rounded-3xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] ${className}`}
     >
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-5 py-5 sm:px-6">
+      <div className="border-b border-[var(--bq-border)] bg-[var(--bq-surface)] px-5 py-5 sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-extrabold tracking-tight text-slate-900">
+              <h2 className="text-xl font-extrabold tracking-tight text-[var(--bq-text)]">
                 Public Research Datasets
               </h2>
 
@@ -589,7 +590,7 @@ export default function DatasetPoolPanel({
               <Badge tone="purple">TCGA / GDC</Badge>
             </div>
 
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--bq-text-dim)]">
               Select a curated public breast-cancer expression dataset,
               inspect its metadata, and send the selected dataset through
               the BIOQURE inference pipeline.
@@ -626,7 +627,7 @@ export default function DatasetPoolPanel({
                 loadBackendStatus();
               }}
               disabled={loading}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+              className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface)] px-3 py-2 text-xs font-semibold text-[var(--bq-text)] transition hover:border-[var(--bq-border-strong)] hover:bg-[var(--bq-surface-alt)] disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
@@ -634,37 +635,28 @@ export default function DatasetPoolPanel({
         </div>
 
         {/* Search */}
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <div data-tour="dataset-filters" className="mt-5 flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <input
               type="search"
+              data-tour="dataset-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search dataset ID, project, source, or description…"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+              className="w-full rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] px-4 py-3 text-sm text-[var(--bq-text)] outline-none transition placeholder:text-[var(--bq-text-faint)] focus:border-[var(--bq-border-strong)] focus:bg-[var(--bq-surface)]"
             />
           </div>
 
-          <div className="flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-500">
+          <div className="flex items-center rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface)] px-4 py-3 text-xs font-semibold text-[var(--bq-text-dim)]">
             {filteredDatasets.length} dataset
             {filteredDatasets.length === 1 ? "" : "s"}
           </div>
-          <select value={sampleType} onChange={(event) => setSampleType(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-600">
-            <option>All</option>
-            <option>Primary Tumor</option>
-            <option>Solid Tissue Normal</option>
-          </select>
-          <button type="button" onClick={chooseRandomSample} disabled={!datasets.length} className="rounded-xl bg-slate-900 px-3 py-3 text-xs font-bold text-white disabled:opacity-50">Choose random</button>
         </div>
-        <label className="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs font-semibold text-slate-600">
-          <span>{uploading ? `Uploading ${uploadProgress}%` : "Analyze a local STAR-counts TSV"}</span>
-          <input type="file" accept=".tsv,.rna_seq.augmented_star_gene_counts.tsv" onChange={handleUpload} disabled={uploading} className="max-w-[180px] text-[11px]" />
-        </label>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mx-5 mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6">
+        <div className="mx-5 mt-5 rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-300 sm:mx-6">
           <div className="font-semibold">Dataset service message</div>
           <div className="mt-1">{error}</div>
         </div>
@@ -673,14 +665,14 @@ export default function DatasetPoolPanel({
       {/* Main grid */}
       <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[1.15fr_0.85fr]">
         {/* Dataset collection */}
-        <div className="min-w-0">
+        <div data-tour="dataset-collection" className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-bold text-slate-800">
+              <div className="text-sm font-bold text-[var(--bq-text)]">
                 Curated collection
               </div>
 
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-[var(--bq-text-dim)]">
                 Public datasets available to BIOQURE
               </div>
             </div>
@@ -697,21 +689,21 @@ export default function DatasetPoolPanel({
               {[1, 2, 3, 4].map((item) => (
                 <div
                   key={item}
-                  className="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white"
+                  className="h-32 animate-pulse rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)]"
                 />
               ))}
             </div>
           ) : filteredDatasets.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-lg">
+            <div className="rounded-2xl border border-dashed border-[var(--bq-border-strong)] bg-[var(--bq-surface)] px-6 py-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--bq-surface-alt)] text-lg">
                 🧬
               </div>
 
-              <div className="mt-4 text-sm font-bold text-slate-800">
+              <div className="mt-4 text-sm font-bold text-[var(--bq-text)]">
                 No public datasets found
               </div>
 
-              <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">
+              <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[var(--bq-text-dim)]">
                 The BIOQURE public collection is empty or the current search
                 does not match any dataset.
               </p>
@@ -720,7 +712,7 @@ export default function DatasetPoolPanel({
                 <button
                   type="button"
                   onClick={() => setSearch("")}
-                  className="mt-4 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="mt-4 rounded-lg border border-[var(--bq-border)] px-3 py-2 text-xs font-semibold text-[var(--bq-text)] hover:bg-[var(--bq-surface-alt)]"
                 >
                   Clear search
                 </button>
@@ -735,17 +727,18 @@ export default function DatasetPoolPanel({
                   <button
                     type="button"
                     key={dataset.id}
+                    data-tour="dataset-card"
                     onClick={() => handleSelect(dataset)}
                     className={`w-full rounded-2xl border p-4 text-left transition ${
                       active
-                        ? "border-slate-400 bg-white shadow-sm ring-1 ring-slate-300"
-                        : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                        ? "border-[var(--bq-accent)]/50 bg-[var(--bq-accent)]/[0.06] ring-1 ring-[var(--bq-accent)]/30"
+                        : "border-[var(--bq-border)] bg-[var(--bq-surface)] hover:border-[var(--bq-border-strong)]"
                     }`}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white">
+                          <span className="rounded-lg bg-[var(--bq-accent)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#06201c]">
                             {dataset.id}
                           </span>
 
@@ -754,30 +747,30 @@ export default function DatasetPoolPanel({
                           </Badge>
                         </div>
 
-                        <div className="mt-2 truncate text-sm font-bold text-slate-800">
+                        <div className="mt-2 truncate text-sm font-bold text-[var(--bq-text)]">
                           {dataset.name}
                         </div>
 
-                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--bq-text-dim)]">
                           {dataset.description}
                         </div>
                       </div>
 
-                      <div className="shrink-0 text-xs text-slate-400">
+                      <div className="shrink-0 text-xs text-[var(--bq-text-faint)]">
                         {dataset.project}
                       </div>
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                      <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
                         {dataset.dataType}
                       </span>
 
-                      <span className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                      <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
                         Samples: {formatNumber(dataset.sampleCount)}
                       </span>
 
-                      <span className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
+                      <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
                         Genes: {formatNumber(dataset.geneCount)}
                       </span>
                     </div>
@@ -789,39 +782,39 @@ export default function DatasetPoolPanel({
         </div>
 
         {/* Dataset details / analysis */}
-        <div className="min-w-0">
+        <div data-tour="dataset-workspace" className="min-w-0">
           <div className="mb-3">
-            <div className="text-sm font-bold text-slate-800">
+            <div className="text-sm font-bold text-[var(--bq-text)]">
               Dataset workspace
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-[var(--bq-text-dim)]">
               Metadata, inference controls, and returned analysis
             </div>
           </div>
 
           {!selectedId ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+            <div className="rounded-2xl border border-dashed border-[var(--bq-border-strong)] bg-[var(--bq-surface)] px-6 py-12 text-center">
               <div className="text-3xl">🧬</div>
-              <div className="mt-3 text-sm font-bold text-slate-800">
+              <div className="mt-3 text-sm font-bold text-[var(--bq-text)]">
                 Select a dataset
               </div>
-              <div className="mt-1 text-xs text-slate-500">
+              <div className="mt-1 text-xs text-[var(--bq-text-dim)]">
                 Choose a dataset from the collection to view details.
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Dataset detail card */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-5">
                 {loadingDetail ? (
                   <div className="space-y-3">
-                    <div className="h-5 w-2/3 animate-pulse rounded bg-slate-100" />
-                    <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
-                    <div className="h-4 w-5/6 animate-pulse rounded bg-slate-100" />
+                    <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--bq-surface-alt)]" />
+                    <div className="h-4 w-full animate-pulse rounded bg-[var(--bq-surface-alt)]" />
+                    <div className="h-4 w-5/6 animate-pulse rounded bg-[var(--bq-surface-alt)]" />
                     <div className="grid grid-cols-2 gap-2 pt-2">
-                      <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
-                      <div className="h-16 animate-pulse rounded-xl bg-slate-100" />
+                      <div className="h-16 animate-pulse rounded-xl bg-[var(--bq-surface-alt)]" />
+                      <div className="h-16 animate-pulse rounded-xl bg-[var(--bq-surface-alt)]" />
                     </div>
                   </div>
                 ) : selectedDataset ? (
@@ -838,7 +831,7 @@ export default function DatasetPoolPanel({
                           </Badge>
                         </div>
 
-                        <h3 className="mt-2 break-words text-lg font-extrabold text-slate-900">
+                        <h3 className="mt-2 break-words text-lg font-extrabold text-[var(--bq-text)]">
                           {selectedDataset.name}
                         </h3>
                       </div>
@@ -848,13 +841,13 @@ export default function DatasetPoolPanel({
                         onClick={() =>
                           setShowDetails((value) => !value)
                         }
-                        className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                        className="shrink-0 rounded-lg border border-[var(--bq-border)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--bq-text-dim)] hover:bg-[var(--bq-surface-alt)]"
                       >
                         {showDetails ? "Hide JSON" : "View JSON"}
                       </button>
                     </div>
 
-                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                    <p className="mt-3 text-sm leading-6 text-[var(--bq-text-dim)]">
                       {selectedDataset.description}
                     </p>
 
@@ -895,7 +888,7 @@ export default function DatasetPoolPanel({
                     </div>
 
                     {showDetails && (
-                      <pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-slate-950 p-4 text-[10px] leading-5 text-slate-200">
+                      <pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-[#05080c] p-4 text-[10px] leading-5 text-[var(--bq-text-dim)]">
                         {JSON.stringify(
                           selectedDataset,
                           null,
@@ -907,25 +900,37 @@ export default function DatasetPoolPanel({
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                       <button
                         type="button"
-                        onClick={handleAnalyze}
+                        data-tour="run-analysis"
+          onClick={handleAnalyze}
                         disabled={analyzing}
-                        className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex-1 rounded-xl bg-[var(--bq-accent)] px-4 py-3 text-sm font-bold text-[#06201c] transition hover:bg-[var(--bq-accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {analyzing
                           ? "Running BIOQURE…"
                           : "Run BIOQURE Analysis"}
                       </button>
 
+                      <button
+                        type="button"
+                        data-tour="download-dataset"
+                        onClick={handleDownload}
+                        disabled={downloading}
+                        className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface)] px-4 py-3 text-sm font-semibold text-[var(--bq-text)] transition hover:bg-[var(--bq-surface-alt)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {downloading
+                          ? "Downloading…"
+                          : "Download Dataset"}
+                      </button>
                     </div>
 
                     {analysisError && (
-                      <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs leading-5 text-red-700">
+                      <div className="mt-3 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-3 text-xs leading-5 text-red-300">
                         {analysisError}
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-[var(--bq-text-dim)]">
                     Dataset details are unavailable.
                   </div>
                 )}
@@ -933,14 +938,14 @@ export default function DatasetPoolPanel({
 
               {/* Analysis result */}
               {analysis && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div data-tour="analysis-result" className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-sm font-bold text-[var(--bq-text)]">
                         Analysis result
                       </div>
 
-                      <div className="mt-0.5 text-xs text-slate-500">
+                      <div className="mt-0.5 text-xs text-[var(--bq-text-dim)]">
                         Returned by the BIOQURE inference service
                       </div>
                     </div>
@@ -952,22 +957,22 @@ export default function DatasetPoolPanel({
 
                   {/* Prediction */}
                   <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <div className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
                         Prediction
                       </div>
 
-                      <div className="mt-1 text-lg font-extrabold text-slate-900">
+                      <div className="mt-1 text-lg font-extrabold text-[var(--bq-text)]">
                         {predictedLabel || "—"}
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    <div className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] p-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
                         Confidence
                       </div>
 
-                      <div className="mt-1 text-lg font-extrabold text-slate-900">
+                      <div className="mt-1 text-lg font-extrabold text-[var(--bq-text)]">
                         {formatPercent(predictedProbability)}
                       </div>
                     </div>
@@ -1006,12 +1011,12 @@ export default function DatasetPoolPanel({
                   {/* Biomarkers */}
                   {biomarkerRows.length > 0 && (
                     <div className="mt-5">
-                      <div className="text-xs font-bold uppercase tracking-[0.1em] text-slate-400">
+                      <div className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--bq-text-faint)]">
                         Biomarker signals
                       </div>
 
-                      <div className="mt-2 overflow-hidden rounded-xl border border-slate-200">
-                        <div className="divide-y divide-slate-200">
+                      <div className="mt-2 overflow-hidden rounded-xl border border-[var(--bq-border)]">
+                        <div className="divide-y divide-[var(--bq-border)]">
                           {biomarkerRows
                             .slice(0, 8)
                             .map((row, index) => {
@@ -1038,11 +1043,11 @@ export default function DatasetPoolPanel({
                                   key={`${gene}-${index}`}
                                   className="flex items-center justify-between gap-4 px-3 py-2.5"
                                 >
-                                  <span className="font-mono text-xs font-semibold text-slate-700">
+                                  <span className="font-mono text-xs font-semibold text-[var(--bq-text)]">
                                     {gene}
                                   </span>
 
-                                  <span className="text-xs font-semibold text-slate-500">
+                                  <span className="text-xs font-semibold text-[var(--bq-text-dim)]">
                                     {typeof value === "number"
                                       ? value.toFixed(4)
                                       : String(value ?? "—")}
@@ -1057,11 +1062,11 @@ export default function DatasetPoolPanel({
 
                   {/* Raw response */}
                   <details className="mt-4">
-                    <summary className="cursor-pointer text-xs font-semibold text-slate-500">
+                    <summary className="cursor-pointer text-xs font-semibold text-[var(--bq-text-dim)]">
                       View complete analysis response
                     </summary>
 
-                    <pre className="mt-2 max-h-80 overflow-auto rounded-xl bg-slate-950 p-4 text-[10px] leading-5 text-slate-200">
+                    <pre className="mt-2 max-h-80 overflow-auto rounded-xl bg-[#05080c] p-4 text-[10px] leading-5 text-[var(--bq-text-dim)]">
                       {JSON.stringify(
                         analysis,
                         null,
@@ -1077,8 +1082,8 @@ export default function DatasetPoolPanel({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-slate-200 bg-white px-5 py-4 sm:px-6">
-        <div className="flex flex-col gap-2 text-[11px] leading-5 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-t border-[var(--bq-border)] bg-[var(--bq-surface)] px-5 py-4 sm:px-6">
+        <div className="flex flex-col gap-2 text-[11px] leading-5 text-[var(--bq-text-faint)] sm:flex-row sm:items-center sm:justify-between">
           <span>
             BIOQURE is a research decision-support interface.
           </span>
