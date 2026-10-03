@@ -68,6 +68,13 @@ class InferenceIntegrationTests(unittest.TestCase):
         self.assertEqual(result["quantum"]["tumor_probability"], candidate_a["tumor_probability"])
         self.assertEqual(result["quantum"]["scaled_features"], [row["quantum_angle"] for row in result["biomarkers"]])
         self.assertEqual(result["quantum"]["qubits"], 8)
+        self.assertAlmostEqual(result["quantum"]["angle_bounds"]["max"], np.pi / 2)
+        self.assertTrue(all(0.0 <= angle <= np.pi / 2 for angle in result["quantum"]["scaled_features"]))
+        self.assertNotIn("checks", result["benchmark"])
+        for section in (result, result["prediction"], result["benchmark"]):
+            self.assertEqual(section["selected_model_key"], "logistic_regression")
+        self.assertIn("logistic_regression", result["benchmark"]["models"])
+        self.assertIn("logistic_regression", result["classical_models"])
         self.assertEqual(result["quantum"]["shots"], 2048)
         self.assertEqual(result["input_metrics"]["biomarkers_used"], 8)
         self.assertGreater(result["input_metrics"]["genes_detected"], 8)

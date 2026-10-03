@@ -175,6 +175,16 @@ function LockedInferenceSummary({ result }) {
    APP
    ========================================================= */
 
+// Report components are styled with the --gz-* theme tokens (dark by default),
+// so give them the matching page background inside the light app shell.
+function ReportSurface({ children }) {
+  return (
+    <div className="rounded-2xl bg-[var(--gz-page)] p-4 text-[var(--gz-body)] sm:p-5">
+      {children}
+    </div>
+  );
+}
+
 export default function App() {
   const [selectedDataset, setSelectedDataset] = useState(null);
   const [analysis, setAnalysis] = useState(null);
@@ -446,10 +456,9 @@ export default function App() {
                 {activeTab === "overview" && (
                   <div className="space-y-5">
                     <LockedInferenceSummary result={analysis} />
-                    <ReportMetrics
-                      analysis={analysis}
-                      dataset={selectedDataset}
-                    />
+                    <ReportSurface>
+                      <ReportMetrics result={analysis} />
+                    </ReportSurface>
 
                     <div className="grid gap-5 lg:grid-cols-2">
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -575,31 +584,33 @@ export default function App() {
 
                 {/* BENCHMARK */}
                 {activeTab === "benchmark" && (
-                  <ReportBenchmark
-                    analysis={analysis}
-                  />
+                  <ReportSurface>
+                    <ReportBenchmark
+                      benchmark={analysis.benchmark}
+                      result={analysis}
+                    />
+                  </ReportSurface>
                 )}
 
                 {/* QUANTUM */}
                 {activeTab === "quantum" && (
-                  <ReportQuantum
-                    analysis={analysis}
-                  />
+                  <ReportSurface>
+                    <ReportQuantum result={analysis} />
+                  </ReportSurface>
                 )}
 
                 {/* BIOMARKERS */}
                 {activeTab === "biomarkers" && (
-                  <ReportBiomarkers
-                    analysis={analysis}
-                  />
+                  <ReportSurface>
+                    <ReportBiomarkers result={analysis} />
+                  </ReportSurface>
                 )}
 
                 {/* INPUT METRICS */}
                 {activeTab === "input" && (
-                  <ReportInputMetrics
-                    analysis={analysis}
-                    dataset={selectedDataset}
-                  />
+                  <ReportSurface>
+                    <ReportInputMetrics result={analysis} />
+                  </ReportSurface>
                 )}
               </div>
             </div>

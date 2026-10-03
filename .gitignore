@@ -46,3 +46,4 @@ data/datasets/*
 !data/datasets/.gitkeep
 !data/datasets/pools/default-public-pool/
 !data/datasets/pools/default-public-pool/**
+report_fixtures/

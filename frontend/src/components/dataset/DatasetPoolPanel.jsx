@@ -287,10 +287,10 @@ export default function DatasetPoolPanel({
   }, []);
 
   useEffect(() => {
-    if (selectedDatasetId && selectedDatasetId !== selectedId) {
+    if (selectedDatasetId) {
       setSelectedId(selectedDatasetId);
     }
-  }, [selectedDatasetId, selectedId]);
+  }, [selectedDatasetId]);
 
   /* -------------------------------------------------------
      Load selected dataset details
