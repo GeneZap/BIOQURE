@@ -18,9 +18,9 @@ import ReportQuantum from "./components/report/ReportQuantum.jsx";
 import ReportBiomarkers from "./components/report/ReportBiomarkers.jsx";
 import ReportInputMetrics from "./components/report/ReportInputMetrics.jsx";
 import { ChatAssistant } from "./ChatAssistant.jsx";
-import ProductTour from "./tour/ProductTour.jsx";
-import HelpMenu from "./tour/HelpMenu.jsx";
-import { startProductTour } from "./tour/tourEvents.js";
+import ProductTour from "./TOUR/ProductTour.jsx";
+import HelpMenu from "./TOUR/HelpMenu.jsx";
+import { startProductTour } from "./TOUR/tourEvents.js";
 import DnaHelix from "./DnaHelix.jsx";
 
 /* =========================================================
@@ -34,6 +34,11 @@ function firstDefined(...values) {
 }
 
 function getPrediction(result) {
+  const deploymentPrediction = result?.deployment_prediction;
+  if (deploymentPrediction?.predicted_class) {
+    return deploymentPrediction.predicted_class;
+  }
+
   const prediction = firstDefined(
     result?.prediction,
     result?.result?.prediction,
@@ -56,6 +61,13 @@ function getPrediction(result) {
 }
 
 function getConfidence(result) {
+  if (result?.deployment_prediction?.tumor_probability != null) {
+    const tumorProbability = result.deployment_prediction.tumor_probability;
+    return result.deployment_prediction.predicted_class === "Normal"
+      ? 1 - tumorProbability
+      : tumorProbability;
+  }
+
   const prediction = firstDefined(
     result?.prediction,
     result?.result?.prediction
@@ -73,6 +85,7 @@ function getConfidence(result) {
 
 function getModel(result) {
   return firstDefined(
+    result?.deployment_prediction?.model,
     result?.model_selection?.selected_model,
     result?.model_selection?.model,
     result?.selected_model,
@@ -415,9 +428,9 @@ export default function App() {
               >
                 <div className="grid grid-cols-2 gap-x-4 gap-y-5 px-5 pb-5 pt-3">
                   <StatTile value="TCGA-BRCA" label="Dataset pool" />
-                  <StatTile value="4" label="Classical models" />
-                  <StatTile value="6–8" label="Qubits used" />
-                  <StatTile value="1024" label="Shots / run" />
+                  <StatTile value="3" label="Locked endpoints" />
+                  <StatTile value="8" label="Qubits used" />
+                  <StatTile value="2048" label="Shots / run" />
                 </div>
               </HudPanel>
 
