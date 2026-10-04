@@ -60,12 +60,9 @@ function getPrediction(result) {
   );
 }
 
-function getConfidence(result) {
+function getTumorProbability(result) {
   if (result?.deployment_prediction?.tumor_probability != null) {
-    const tumorProbability = result.deployment_prediction.tumor_probability;
-    return result.deployment_prediction.predicted_class === "Normal"
-      ? 1 - tumorProbability
-      : tumorProbability;
+    return result.deployment_prediction.tumor_probability;
   }
 
   const prediction = firstDefined(
@@ -81,6 +78,11 @@ function getConfidence(result) {
     result?.confidence,
     result?.score
   );
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(2)}%` : "—";
 }
 
 function getModel(result) {
@@ -250,8 +252,8 @@ export default function App() {
     [analysis]
   );
 
-  const confidence = useMemo(
-    () => getConfidence(analysis),
+  const tumorProbability = useMemo(
+    () => getTumorProbability(analysis),
     [analysis]
   );
 
@@ -607,16 +609,17 @@ export default function App() {
 
                           <div className="flex items-center justify-between gap-4">
                             <span className="text-sm text-[var(--bq-text-dim)]">
-                              Confidence
+                              Tumor probability
                             </span>
 
                             <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {confidence !== undefined &&
-                              confidence !== null
-                                ? confidence
-                                : "—"}
+                              {formatPercent(tumorProbability)}
                             </span>
                           </div>
+
+                          <p className="text-[10px] leading-4 text-[var(--bq-text-faint)]">
+                            Fitted model probability, not clinical confidence.
+                          </p>
 
                           <div className="flex items-center justify-between gap-4">
                             <span className="text-sm text-[var(--bq-text-dim)]">

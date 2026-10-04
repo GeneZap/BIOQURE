@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   analyzePublicDataset,
   getBIOQUREStatus,
-  getPublicDataset,
   listPublicDatasets,
   savePublicDataset,
 } from "../../services/datasetsApi.js";
@@ -84,6 +83,11 @@ function normalizeDataset(item, index = 0) {
       item?.dataType,
       item?.expression_type,
       "RNA-seq expression"
+    ),
+    sampleType: firstDefined(
+      item?.sample_type,
+      item?.sampleType,
+      "Not reported"
     ),
   };
 }
@@ -224,7 +228,6 @@ export default function DatasetPoolPanel({
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadingDetail, setLoadingDetail] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
@@ -251,13 +254,15 @@ export default function DatasetPoolPanel({
 
       setDatasets(normalized);
 
-      const preferredId =
-        selectedDatasetId ||
-        normalized[0]?.id ||
-        "";
+      const preferredDataset =
+        normalized.find((dataset) => dataset.id === selectedDatasetId) ||
+        normalized[0] ||
+        null;
 
-      if (preferredId) {
-        setSelectedId(preferredId);
+      if (preferredDataset) {
+        setSelectedId(preferredDataset.id);
+        setSelectedDataset(preferredDataset);
+        onDatasetSelect?.(preferredDataset);
       }
     } catch (err) {
       setError(
@@ -285,54 +290,20 @@ export default function DatasetPoolPanel({
   }, []);
 
   useEffect(() => {
-    if (selectedDatasetId && selectedDatasetId !== selectedId) {
-      setSelectedId(selectedDatasetId);
-    }
-  }, [selectedDatasetId, selectedId]);
-
-  /* -------------------------------------------------------
-     Load selected dataset details
-     ------------------------------------------------------- */
-
-  async function loadDatasetDetails(datasetId) {
-    if (!datasetId) return;
-
-    setLoadingDetail(true);
-    setAnalysis(null);
-    setAnalysisError("");
-
-    try {
-      const response = await getPublicDataset(datasetId);
-
-      const normalized = normalizeDataset(response);
-
-      setSelectedDataset(normalized);
-
-      if (onDatasetSelect) {
-        onDatasetSelect(normalized);
-      }
-    } catch (err) {
-      setSelectedDataset(
-        datasets.find((dataset) => dataset.id === datasetId) || null
-      );
-
-      setError(
-        err?.message ||
-          "Unable to load dataset details."
-      );
-    } finally {
-      setLoadingDetail(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!selectedId) {
-      setSelectedDataset(null);
+    if (!selectedDatasetId || selectedDatasetId === selectedId) {
       return;
     }
 
-    loadDatasetDetails(selectedId);
-  }, [selectedId]);
+    const externalSelection = datasets.find(
+      (dataset) => dataset.id === selectedDatasetId
+    );
+    if (externalSelection) {
+      setSelectedId(externalSelection.id);
+      setSelectedDataset(externalSelection);
+      setAnalysis(null);
+      setAnalysisError("");
+    }
+  }, [datasets, selectedDatasetId, selectedId]);
 
   /* -------------------------------------------------------
      Filtered collection
@@ -369,9 +340,12 @@ export default function DatasetPoolPanel({
      ------------------------------------------------------- */
 
   function handleSelect(dataset) {
+    if (analyzing) return;
     setSelectedId(dataset.id);
+    setSelectedDataset(dataset);
     setAnalysis(null);
     setAnalysisError("");
+    onDatasetSelect?.(dataset);
   }
 
   /* -------------------------------------------------------
@@ -734,7 +708,8 @@ export default function DatasetPoolPanel({
                     key={dataset.id}
                     data-tour="dataset-card"
                     onClick={() => handleSelect(dataset)}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                    disabled={analyzing}
+                    className={`w-full rounded-2xl border p-4 text-left transition disabled:cursor-wait disabled:opacity-60 ${
                       active
                         ? "border-[var(--bq-accent)]/50 bg-[var(--bq-accent)]/[0.06] ring-1 ring-[var(--bq-accent)]/30"
                         : "border-[var(--bq-border)] bg-[var(--bq-surface)] hover:border-[var(--bq-border-strong)]"
@@ -812,17 +787,7 @@ export default function DatasetPoolPanel({
             <div className="space-y-4">
               {/* Dataset detail card */}
               <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-5">
-                {loadingDetail ? (
-                  <div className="space-y-3">
-                    <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--bq-surface-alt)]" />
-                    <div className="h-4 w-full animate-pulse rounded bg-[var(--bq-surface-alt)]" />
-                    <div className="h-4 w-5/6 animate-pulse rounded bg-[var(--bq-surface-alt)]" />
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                      <div className="h-16 animate-pulse rounded-xl bg-[var(--bq-surface-alt)]" />
-                      <div className="h-16 animate-pulse rounded-xl bg-[var(--bq-surface-alt)]" />
-                    </div>
-                  </div>
-                ) : selectedDataset ? (
+                {selectedDataset ? (
                   <>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -865,6 +830,11 @@ export default function DatasetPoolPanel({
                       <Stat
                         label="Project"
                         value={selectedDataset.project}
+                      />
+
+                      <Stat
+                        label="Sample type"
+                        value={selectedDataset.sampleType}
                       />
 
                       <Stat
@@ -1017,7 +987,7 @@ export default function DatasetPoolPanel({
                   {biomarkerRows.length > 0 && (
                     <div className="mt-5">
                       <div className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--bq-text-faint)]">
-                        Biomarker signals
+                        Biomarker log2(TPM + 1) values
                       </div>
 
                       <div className="mt-2 overflow-hidden rounded-xl border border-[var(--bq-border)]">
@@ -1035,6 +1005,8 @@ export default function DatasetPoolPanel({
                               );
 
                               const value = firstDefined(
+                                row?.log2_tpm_plus_1,
+                                row?.raw_tpm,
                                 row?.value,
                                 row?.expression,
                                 row?.score,

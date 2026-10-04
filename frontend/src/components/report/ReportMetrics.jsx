@@ -117,7 +117,7 @@ export default function ReportMetrics({
       <MetricCard
         label="Tumor probability"
         value={formatPercent(tumorProbability)}
-        description="Probability from the selected deployment model"
+        description="Fitted deployment-model probability; not clinical confidence"
       />
 
       <MetricCard

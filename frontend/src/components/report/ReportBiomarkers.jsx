@@ -23,6 +23,11 @@ function normalizeBiomarkers(analysis) {
   }));
 }
 
+function formatValue(value, digits = 4) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(digits) : "Not reported";
+}
+
 export default function ReportBiomarkers({
   analysis,
   limit = 8,
@@ -51,69 +56,59 @@ export default function ReportBiomarkers({
     <div className="overflow-hidden rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)]">
       <div className="border-b border-[var(--bq-border)] bg-[var(--bq-surface-alt)] px-4 py-3">
         <div className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--bq-text-dim)]">
-          Biomarker signals
+          Locked biomarker feature values
         </div>
 
         <div className="mt-1 text-xs text-[var(--bq-text-faint)]">
-          Feature-level values returned by the BIOQURE analysis service.
+          Raw expression, transformed expression, and the exact values supplied
+          to the classical and quantum endpoints. These are model inputs, not
+          causal importance scores or clinical evidence.
         </div>
       </div>
 
-      <div className="grid grid-cols-[1fr_auto] gap-4 border-b border-[var(--bq-border)] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--bq-text-faint)]">
-        <span>Gene / feature</span>
-        <span>Signal</span>
-      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left">
+          <thead>
+            <tr className="border-b border-[var(--bq-border)] text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--bq-text-faint)]">
+              <th className="px-4 py-3">Gene</th>
+              <th className="px-4 py-3">Raw TPM</th>
+              <th className="px-4 py-3">log2(TPM + 1)</th>
+              <th className="px-4 py-3">Classical scaled</th>
+              <th className="px-4 py-3">Quantum angle (rad)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--bq-border)]">
+            {biomarkers.slice(0, limit).map((item, index) => {
+              const gene = firstDefined(
+                item?.gene,
+                item?.gene_name,
+                item?.feature,
+                item?.name,
+                `Feature ${index + 1}`
+              );
 
-      <div className="divide-y divide-[var(--bq-border)]">
-        {biomarkers.slice(0, limit).map((item, index) => {
-          const gene = firstDefined(
-            item?.gene,
-            item?.gene_name,
-            item?.feature,
-            item?.name,
-            `Feature ${index + 1}`
-          );
-
-          const value = firstDefined(
-            item?.value,
-            item?.expression,
-            item?.score,
-            item?.importance,
-            item?.signal
-          );
-
-          const direction = firstDefined(
-            item?.direction,
-            item?.trend
-          );
-
-          return (
-            <div
-              key={`${gene}-${index}`}
-              className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3"
-            >
-              <div className="min-w-0">
-                <div className="font-mono text-xs font-bold text-[var(--bq-text)]">
-                  {gene}
-                </div>
-
-                {direction && (
-                  <div className="mt-0.5 text-[10px] text-[var(--bq-text-faint)]">
-                    {direction}
-                  </div>
-                )}
-              </div>
-
-              <div className="text-right">
-                <div className="font-mono text-xs font-semibold text-[var(--bq-text-dim)]">
-                  {typeof value === "number"
-                    ? value.toFixed(4)
-                    : String(value ?? "—")}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+              return (
+                <tr key={`${gene}-${index}`}>
+                  <td className="px-4 py-3 font-mono text-xs font-bold text-[var(--bq-text)]">
+                    {gene}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-[var(--bq-text-dim)]">
+                    {formatValue(firstDefined(item?.raw_tpm, item?.value, item?.expression))}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-[var(--bq-text-dim)]">
+                    {formatValue(item?.log2_tpm_plus_1)}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-[var(--bq-text-dim)]">
+                    {formatValue(item?.classical_scaled_value)}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-[var(--bq-text-dim)]">
+                    {formatValue(item?.quantum_angle)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {biomarkers.length > limit && (
