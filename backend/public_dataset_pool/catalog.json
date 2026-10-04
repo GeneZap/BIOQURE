@@ -2,136 +2,166 @@
   {
     "demo_id": "BRCA-DEMO-001",
     "display_name": "TCGA-BRCA Demo 001",
-    "sample_type": "Primary Tumor",
+    "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "83af6ceac028d0d9e35c25cb64c9f57442803862008d654eb372dac2b715762c",
-    "size_bytes": 4243325,
-    "biomarkers_available": true
+    "file_sha256": "b1f625ef5a4a6f271d5862e76d20ab1bf5273d15c2acdb274b7783de23a7eb39",
+    "size_bytes": 4248818,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_1062.tsv",
+    "quality_score": 0.845
   },
   {
     "demo_id": "BRCA-DEMO-002",
     "display_name": "TCGA-BRCA Demo 002",
     "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "ae251d99237d7db403d90bd1d5d9e861cf2a5b86d68e678b03dcbe4b5c019732",
-    "size_bytes": 4242948,
-    "biomarkers_available": true
+    "file_sha256": "4e6f9ccd194b55bc24c6d7ad7a553a9c19c59ab531fbd89f4c8e40c75d4ebb16",
+    "size_bytes": 4251180,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_175.tsv",
+    "quality_score": 0.623
   },
   {
     "demo_id": "BRCA-DEMO-003",
     "display_name": "TCGA-BRCA Demo 003",
     "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "2a456d7c1b09c6e46229e3cd7304c3368c8c75427af70f4e5b9e64705353cf32",
-    "size_bytes": 4229305,
-    "biomarkers_available": true
+    "file_sha256": "5b7c2261b7515eb6605bb225a1550fd31b918c3bc5212a883086e3c258361b9f",
+    "size_bytes": 4250718,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_174.tsv",
+    "quality_score": 0.912
   },
   {
     "demo_id": "BRCA-DEMO-004",
     "display_name": "TCGA-BRCA Demo 004",
-    "sample_type": "Primary Tumor",
+    "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "8af6d57aeadd3718d110a82e7c502d5cffea1ed1189d4141ac66e2dff4b61260",
-    "size_bytes": 4219617,
-    "biomarkers_available": true
+    "file_sha256": "a7506b9d3f3007d9cc7903cdf3d4b2789ac3200cbedd7c6131d5a9ec6870296f",
+    "size_bytes": 4237684,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_843.tsv",
+    "quality_score": 0.734
   },
   {
     "demo_id": "BRCA-DEMO-005",
     "display_name": "TCGA-BRCA Demo 005",
-    "sample_type": "Primary Tumor",
+    "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "6443476fe715430eb043f3ff1c4d0b7382bed05f4a3630d17eddc9e386082255",
-    "size_bytes": 4244868,
-    "biomarkers_available": true
+    "file_sha256": "2da47de094fe666a284ff0047d94237e01497d7d3ce6f27f09114cc4ece11a4a",
+    "size_bytes": 4242655,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_838.tsv",
+    "quality_score": 0.589
   },
   {
     "demo_id": "BRCA-DEMO-006",
     "display_name": "TCGA-BRCA Demo 006",
     "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "79196ead2b06ef1871f149718db91f4c827c128b541cda4a948dc13f212530af",
-    "size_bytes": 4235115,
-    "biomarkers_available": true
+    "file_sha256": "b50eb7e1c0e87cfb40959244b30ef8660bc2d38be48330a46df69cc92c82d0a2",
+    "size_bytes": 4260528,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_299.tsv",
+    "quality_score": 0.678
   },
   {
     "demo_id": "BRCA-DEMO-007",
     "display_name": "TCGA-BRCA Demo 007",
     "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "b02e82366e3377799452c4ec9d62283e596ef93037df9a6a7a0a49067e38474d",
-    "size_bytes": 4229577,
-    "biomarkers_available": true
+    "file_sha256": "257950d746ddd33b0eccca3831938c0a5ba56049b7ebebe133c0738cc227ba1b",
+    "size_bytes": 4251095,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_395.tsv",
+    "quality_score": 0.821
   },
   {
     "demo_id": "BRCA-DEMO-008",
     "display_name": "TCGA-BRCA Demo 008",
     "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "3e8974ddb136381f12409edff7b93a240cbc9b3c6a006f525b01fc4b508845a1",
-    "size_bytes": 4252794,
-    "biomarkers_available": true
+    "file_sha256": "440ff8c2eaa7bc9a1d2aacf9eac975694d597cccbd6410e099b5532796188ec0",
+    "size_bytes": 4259705,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_49.tsv",
+    "quality_score": 0.765
   },
   {
     "demo_id": "BRCA-DEMO-009",
     "display_name": "TCGA-BRCA Demo 009",
-    "sample_type": "Solid Tissue Normal",
+    "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "b0b40640e527f9f697a1caef3ecf23507f0932b6ef1c4593735f507417b42a39",
-    "size_bytes": 4230216,
-    "biomarkers_available": true
+    "file_sha256": "3cdfa1c1d774fcf9dda504290d8b4706e31b4355923049e3064151e1e86cfc9e",
+    "size_bytes": 4260214,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_24.tsv",
+    "quality_score": 0.932
   },
   {
     "demo_id": "BRCA-DEMO-010",
     "display_name": "TCGA-BRCA Demo 010",
     "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "7263c39c7d23240f3e490f93b58a29ead7132904db53fad1407cff7a26995f30",
-    "size_bytes": 4255467,
-    "biomarkers_available": true
+    "file_sha256": "2b08a11a92c6d3167e4fee99f0b10d611ce1590ecf0450b2f79c271453e130ca",
+    "size_bytes": 4256665,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_916.tsv",
+    "quality_score": 0.647
   },
   {
     "demo_id": "BRCA-DEMO-011",
     "display_name": "TCGA-BRCA Demo 011",
     "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "53cf6881447ef6083b6976fe5418c989d23676bf93fb5ed41745154fd6454361",
-    "size_bytes": 4256504,
-    "biomarkers_available": true
+    "file_sha256": "e588745a24d4c912d202cfc6bda25877cd35f70352e0fb300bf14c76296dbbe1",
+    "size_bytes": 4236406,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_689.tsv",
+    "quality_score": 0.789
   },
   {
     "demo_id": "BRCA-DEMO-012",
     "display_name": "TCGA-BRCA Demo 012",
-    "sample_type": "Solid Tissue Normal",
+    "sample_type": "Primary Tumor",
     "split": "train",
-    "file_sha256": "820c9accef4b1d327acb942c65193d2c4c2bd2c618442e2d3b03b83758d20632",
-    "size_bytes": 4246942,
-    "biomarkers_available": true
+    "file_sha256": "c6fcae3143ef880f66d7e4cda42b93bddaf359141de552171476ffc517af8b10",
+    "size_bytes": 4251965,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_257.tsv",
+    "quality_score": 0.876
   },
   {
     "demo_id": "BRCA-DEMO-013",
     "display_name": "TCGA-BRCA Demo 013",
     "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "6931713136a5532569399b371e319ca53904e2140c3664ecfa570954c9e305e9",
-    "size_bytes": 4261615,
-    "biomarkers_available": true
+    "file_sha256": "c9f8123f68e03f90c0e669f2d1bc391dae7b2b5bb1245f04e4c43a034be2fff3",
+    "size_bytes": 4247040,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_674.tsv",
+    "quality_score": 0.612
   },
   {
     "demo_id": "BRCA-DEMO-014",
     "display_name": "TCGA-BRCA Demo 014",
     "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "4ccc3ee05e9335f3b80f5eae95a026fac7051c60f35cbcae62da5424f49e710d",
-    "size_bytes": 4265890,
-    "biomarkers_available": true
+    "file_sha256": "33c67e7bf5dc0cee1ab69825cd09ba55b35637440e1b59673ab8a3e874fc7720",
+    "size_bytes": 4242368,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_925.tsv",
+    "quality_score": 0.743
   },
   {
     "demo_id": "BRCA-DEMO-015",
     "display_name": "TCGA-BRCA Demo 015",
     "sample_type": "Solid Tissue Normal",
     "split": "train",
-    "file_sha256": "4defce6ac06bc8a67f6948261f0a3ec9c46895c7127b9d81adf925f91e03e1c5",
-    "size_bytes": 4261955,
-    "biomarkers_available": true
+    "file_sha256": "1555261fa7214e64a2c8d14c7e7f3e7ac2df2d6e8e36450697dcdec43fcb7cc1",
+    "size_bytes": 4246201,
+    "biomarkers_available": true,
+    "source_filename": "DATASET_877.tsv",
+    "quality_score": 0.891
   }
 ]
