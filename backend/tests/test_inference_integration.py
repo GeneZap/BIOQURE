@@ -49,7 +49,7 @@ class InferenceIntegrationTests(unittest.TestCase):
 
     def test_locked_inference_schema_fixed_aggregation_and_thresholds(self):
         result = self.engine.infer(
-            fixture_bytes(), "demo", "BRCA-DEMO-001", "Solid Tissue Normal"
+            fixture_bytes(), "demo", "BRCA-DEMO-001", "Primary Tumor"
         )
         self.assertEqual(result["model_lock"]["feature_count"], 8)
         self.assertEqual([row["gene_name"] for row in result["biomarkers"]], list(FEATURE_NAMES))
@@ -58,6 +58,14 @@ class InferenceIntegrationTests(unittest.TestCase):
         self.assertEqual(result["predictions"]["quantum_ae_balanced"]["threshold"], 0.34)
         a = result["predictions"]["quantum_candidate_a_mean"]
         self.assertAlmostEqual(a["tumor_probability"], sum(a["seed_probabilities"]) / 5.0)
+        ae = result["predictions"]["quantum_ae_balanced"]
+        self.assertEqual(len(ae["candidate_a_seed_probabilities"]), 5)
+        self.assertEqual(len(ae["candidate_e_seed_probabilities"]), 5)
+        self.assertAlmostEqual(
+            ae["tumor_probability"],
+            ae["candidate_a_weight"] * ae["candidate_a_median_probability"]
+            + ae["candidate_e_weight"] * ae["candidate_e_median_probability"],
+        )
         for prediction in result["predictions"].values():
             self.assertTrue(0.0 <= prediction["tumor_probability"] <= 1.0)
         self.assertIn("all_models_agree", result["agreement"])
@@ -71,14 +79,36 @@ class InferenceIntegrationTests(unittest.TestCase):
         self.assertFalse(result["quantum"]["fallback_used"])
         self.assertEqual(result["quantum"]["shots"], 2048)
         self.assertEqual(result["benchmark"]["selected_model"], "classical_logistic")
+        self.assertEqual(
+            result["benchmark"]["provenance"]["scope"],
+            "saved validation-set metrics; not this sample",
+        )
+        for biomarker in result["biomarkers"]:
+            self.assertTrue(
+                {
+                    "gene_name",
+                    "raw_tpm",
+                    "log2_tpm_plus_1",
+                    "classical_scaled_value",
+                    "quantum_angle",
+                }.issubset(biomarker)
+            )
         self.assertIn("total_time_ms", result["runtime"])
 
     def test_demo_pool_is_training_only_and_hashes_are_unchanged(self):
         pool = json.loads((ROOT / "public_dataset_pool/catalog.json").read_text())
         self.assertEqual(len(pool), 15)
-        self.assertEqual(sum(item["sample_type"] == "Primary Tumor" for item in pool), 7)
-        self.assertEqual(sum(item["sample_type"] == "Solid Tissue Normal" for item in pool), 8)
+        self.assertEqual(sum(item["sample_type"] == "Primary Tumor" for item in pool), 8)
+        self.assertEqual(sum(item["sample_type"] == "Solid Tissue Normal" for item in pool), 7)
         self.assertTrue(all(item["split"] == "train" for item in pool))
+        self.assertTrue(all(item["label_verified"] is True for item in pool))
+        self.assertTrue(
+            all(
+                item["label_provenance"]
+                == "gdc_sample_metadata+training_split_manifest"
+                for item in pool
+            )
+        )
         self.assertTrue(all("quality_score" not in item for item in pool))
         self.assertTrue(all((ROOT / "public_dataset_pool/raw" / f"{item['demo_id']}.rna_seq.augmented_star_gene_counts.tsv").is_file() for item in pool))
         lock = ROOT / "configs/final_model_lock.json"

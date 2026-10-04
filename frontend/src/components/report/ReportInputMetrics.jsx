@@ -233,9 +233,9 @@ export default function ReportInputMetrics({
         />
 
         <MetricCard
-          label="Genes"
+          label="Raw gene rows parsed"
           value={formatNumber(geneCount)}
-          description="Reported expression features"
+          description="Non-summary STAR-counts rows found in the uploaded TSV"
         />
 
         <MetricCard
@@ -243,7 +243,7 @@ export default function ReportInputMetrics({
           value={formatNumber(
             selectedFeatureCount ?? featureCount
           )}
-          description="Features passed into inference"
+          description="Locked biomarkers actually passed into each model"
         />
       </div>
 

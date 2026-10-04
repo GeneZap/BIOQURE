@@ -184,22 +184,50 @@ class LockedInferenceEngine:
         pool = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(pool, list):
             raise RuntimeError("Public demo catalog must be a top-level JSON array.")
+        if len(pool) != 15:
+            raise RuntimeError("Public demo catalog must contain exactly 15 samples.")
+        seen_ids: set[str] = set()
+        sample_type_counts = {"Primary Tumor": 0, "Solid Tissue Normal": 0}
         for item in pool:
             if not isinstance(item, dict):
                 raise RuntimeError("Public demo catalog entries must be JSON objects.")
+            demo_id = item.get("demo_id")
+            if not demo_id or demo_id in seen_ids:
+                raise RuntimeError("Public demo catalog contains a missing or duplicate ID.")
+            seen_ids.add(demo_id)
             if item.get("split") != "train":
                 raise RuntimeError("Demo pool contains a non-training sample.")
+            sample_type = item.get("sample_type")
+            if sample_type not in sample_type_counts:
+                raise RuntimeError(f"Invalid sample type for {demo_id}: {sample_type}")
+            if item.get("label_verified") is not True or item.get(
+                "label_provenance"
+            ) != "gdc_sample_metadata+training_split_manifest":
+                raise RuntimeError(
+                    f"Unverified sample label for {demo_id}; rebuild the pool from "
+                    "GDC metadata and the training split manifest."
+                )
+            sample_type_counts[sample_type] += 1
             fixture = (
                 ROOT
                 / "public_dataset_pool/raw"
-                / f"{item['demo_id']}{ALLOWED_SUFFIX}"
+                / f"{demo_id}{ALLOWED_SUFFIX}"
             )
             if not fixture.is_file() or not fixture.name.endswith(ALLOWED_SUFFIX):
-                raise RuntimeError(f"Invalid public demo sample: {item['demo_id']}")
+                raise RuntimeError(f"Invalid public demo sample: {demo_id}")
             if sha256_file(fixture) != item.get("file_sha256"):
-                raise RuntimeError(f"Public demo hash mismatch: {item['demo_id']}")
+                raise RuntimeError(f"Public demo hash mismatch: {demo_id}")
+            try:
+                parse_star_counts(fixture.read_bytes())
+            except InferenceError as error:
+                raise RuntimeError(f"Invalid STAR-counts sample {demo_id}: {error}") from error
             item["fixture_path"] = fixture.relative_to(ROOT).as_posix()
-            item["sample_id"] = item["demo_id"]
+            item["sample_id"] = demo_id
+        if sample_type_counts != {"Primary Tumor": 8, "Solid Tissue Normal": 7}:
+            raise RuntimeError(
+                "Public demo pool must contain eight tumors and seven normals; "
+                f"found {sample_type_counts}."
+            )
         return {item["demo_id"]: item for item in pool}
 
     def _quantum_backend_name(self) -> str:
@@ -238,13 +266,19 @@ class LockedInferenceEngine:
                 "ansatz_reps": primary["ansatz_reps"],
                 "entanglement": primary["entanglement"],
                 "seeds": primary["seeds"],
+                "aggregation": primary["aggregation"],
+                "decision_threshold": primary["decision_threshold"],
             },
             "secondary_configuration": {
                 "name": "Candidate A/E balanced ensemble",
                 "candidate_a": secondary["candidate_a_configuration"],
                 "candidate_e": secondary["candidate_e_configuration"],
+                "candidate_a_seeds": secondary["candidate_a_seeds"],
+                "candidate_e_seeds": secondary["candidate_e_seeds"],
+                "aggregation": secondary["aggregation"],
                 "weight_candidate_a": secondary["weight_candidate_a"],
                 "weight_candidate_e": secondary["weight_candidate_e"],
+                "decision_threshold": secondary["decision_threshold"],
             },
         }
 
@@ -260,6 +294,11 @@ class LockedInferenceEngine:
             "selected_model": "classical_logistic",
             "selected_model_label": self.lock["models"]["overall_primary"]["label"],
             "outcome": "classical",
+            "provenance": {
+                "source": "immutable final_model_lock.json",
+                "scope": "saved validation-set metrics; not this sample",
+                "test_set_status": self.lock["test_set_status"],
+            },
             "checks": {
                 "quantum_robust": quantum_robust,
                 "quantum_improves": False,
@@ -308,7 +347,8 @@ class LockedInferenceEngine:
     def demo_list(self) -> list[dict]:
         public_keys = (
             "demo_id", "display_name", "sample_type", "split", "file_sha256",
-            "size_bytes", "biomarkers_available",
+            "size_bytes", "biomarkers_available", "label_verified",
+            "label_provenance",
         )
         return [
             {key: item[key] for key in public_keys}
@@ -374,6 +414,10 @@ class LockedInferenceEngine:
         a_mean = float(np.mean(a_seed))
         a_median = float(np.median(a_seed))
         e_median = float(np.median(e_seed))
+        primary_config = self.lock["models"]["primary_quantum"]
+        secondary_config = self.lock["models"]["secondary_quantum"]
+        weight_a = float(secondary_config["weight_candidate_a"])
+        weight_e = float(secondary_config["weight_candidate_e"])
         predictions = {
             "classical_logistic": {
                 "tumor_probability": classical_probability,
@@ -383,7 +427,9 @@ class LockedInferenceEngine:
             },
             "quantum_candidate_a_mean": {
                 "tumor_probability": a_mean,
-                "threshold": 0.33,
+                "threshold": float(primary_config["decision_threshold"]),
+                "aggregation": "arithmetic mean of five Candidate A probabilities",
+                "seeds": primary_config["seeds"],
                 "seed_probabilities": a_seed,
                 "seed_standard_deviation": float(np.std(a_seed)),
                 "seed_minimum": min(a_seed),
@@ -392,8 +438,18 @@ class LockedInferenceEngine:
                 "timing_scope": "shared_quantum_ensembles",
             },
             "quantum_ae_balanced": {
-                "tumor_probability": float(0.55 * a_median + 0.45 * e_median),
-                "threshold": 0.34,
+                "tumor_probability": float(weight_a * a_median + weight_e * e_median),
+                "threshold": float(secondary_config["decision_threshold"]),
+                "aggregation": (
+                    f"{weight_a:.2f} x median(Candidate A seeds) + "
+                    f"{weight_e:.2f} x median(Candidate E seeds)"
+                ),
+                "candidate_a_median_probability": a_median,
+                "candidate_e_median_probability": e_median,
+                "candidate_a_weight": weight_a,
+                "candidate_e_weight": weight_e,
+                "candidate_a_seed_probabilities": a_seed,
+                "candidate_e_seed_probabilities": e_seed,
                 "inference_ms": round(quantum_ms, 2),
                 "timing_scope": "shared_quantum_ensembles",
             },

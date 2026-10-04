@@ -75,6 +75,7 @@ export default function ReportBenchmark({ analysis = null }) {
   const predictions = result?.predictions ?? {};
   const validationModels = benchmark?.models ?? {};
   const calibration = benchmark?.calibration ?? {};
+  const provenance = benchmark?.provenance ?? {};
   const deployment = result?.deployment_prediction ?? {};
   const selectedModel = deployment?.model ?? benchmark?.selected_model ?? null;
 
@@ -94,7 +95,11 @@ export default function ReportBenchmark({ analysis = null }) {
             </h2>
             <p className="mt-1 max-w-3xl text-sm text-[var(--bq-text-dim)]">
               The prediction table describes this sample. Validation metrics below
-              come from the immutable model lock and are not recalculated here.
+              come verbatim from the immutable model lock and are not recalculated
+              from this sample or from the held-out test set.
+            </p>
+            <p className="mt-2 text-[11px] font-semibold text-violet-300">
+              Provenance: {provenance?.scope || "saved validation metrics"} · test set: {provenance?.test_set_status || "not reported"}
             </p>
           </div>
         </div>
@@ -124,12 +129,12 @@ export default function ReportBenchmark({ analysis = null }) {
           </p>
         </div>
         <CheckCard
-          label="Quantum robustness"
+          label="Quantum operating constraints (validation)"
           passed={checks?.quantum_robust}
           description={checks?.quantum_robust_rule}
         />
         <CheckCard
-          label="Quantum improvement"
+          label="Quantum beats the locked classical baseline"
           passed={checks?.quantum_improves}
           description={checks?.quantum_improvement_reason}
         />

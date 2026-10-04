@@ -6,6 +6,16 @@ function firstDefined(...values) {
   );
 }
 
+function formatPercent(value, digits = 2) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(digits)}%` : "Not reported";
+}
+
+function formatSeedProbabilities(values) {
+  if (!Array.isArray(values) || values.length === 0) return "Not reported";
+  return values.map((value) => formatPercent(value, 1)).join(" · ");
+}
+
 function StatusBadge({ active }) {
   return (
     <span
@@ -42,6 +52,9 @@ export default function ReportQuantum({ analysis }) {
 
   const primary = quantum?.primary_configuration ?? {};
   const secondary = quantum?.secondary_configuration ?? {};
+  const predictions = analysis?.predictions ?? {};
+  const candidateA = predictions?.quantum_candidate_a_mean ?? {};
+  const balancedAE = predictions?.quantum_ae_balanced ?? {};
   const used = firstDefined(
     quantum?.used,
     analysis?.quantum_used,
@@ -113,6 +126,45 @@ export default function ReportQuantum({ analysis }) {
         ))}
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-violet-400/30 bg-violet-400/10 p-5">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-300">
+            Candidate A five-seed mean
+          </div>
+          <div className="mt-3 text-3xl font-extrabold text-[var(--bq-text)]">
+            {formatPercent(candidateA?.tumor_probability)}
+          </div>
+          <div className="mt-1 text-xs text-[var(--bq-text-dim)]">
+            Tumor probability · threshold {candidateA?.threshold ?? "Not reported"}
+          </div>
+          <div className="mt-4 text-[11px] leading-5 text-[var(--bq-text-dim)]">
+            Five separately seeded Candidate A VQCs are evaluated and their
+            positive-class probabilities are averaged.
+          </div>
+          <InfoRow label="Seed probabilities" value={formatSeedProbabilities(candidateA?.seed_probabilities)} />
+          <InfoRow label="Seed standard deviation" value={candidateA?.seed_standard_deviation?.toFixed?.(4)} />
+        </div>
+
+        <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">
+            A/E balanced ensemble
+          </div>
+          <div className="mt-3 text-3xl font-extrabold text-[var(--bq-text)]">
+            {formatPercent(balancedAE?.tumor_probability)}
+          </div>
+          <div className="mt-1 text-xs text-[var(--bq-text-dim)]">
+            Tumor probability · threshold {balancedAE?.threshold ?? "Not reported"}
+          </div>
+          <div className="mt-4 text-[11px] leading-5 text-[var(--bq-text-dim)]">
+            This is not Candidate E alone. It combines the median probability
+            from five Candidate A models with the median probability from five
+            Candidate E models using the locked validation-selected weights.
+          </div>
+          <InfoRow label="Candidate A median" value={formatPercent(balancedAE?.candidate_a_median_probability)} />
+          <InfoRow label="Candidate E median" value={formatPercent(balancedAE?.candidate_e_median_probability)} />
+        </div>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="rounded-2xl border border-violet-400/30 bg-violet-400/10 p-5">
           <div className="text-xs font-bold uppercase tracking-[0.12em] text-violet-400">
@@ -159,6 +211,10 @@ export default function ReportQuantum({ analysis }) {
           <InfoRow label="Candidate E configuration" value={secondary?.candidate_e} />
           <InfoRow label="Candidate A weight" value={secondary?.weight_candidate_a} />
           <InfoRow label="Candidate E weight" value={secondary?.weight_candidate_e} />
+          <InfoRow label="Aggregation" value={secondary?.aggregation} />
+          <InfoRow label="Decision threshold" value={secondary?.decision_threshold} />
+          <InfoRow label="Candidate A seed probabilities" value={formatSeedProbabilities(balancedAE?.candidate_a_seed_probabilities)} />
+          <InfoRow label="Candidate E seed probabilities" value={formatSeedProbabilities(balancedAE?.candidate_e_seed_probabilities)} />
         </div>
       </div>
 
