@@ -37,7 +37,7 @@ def select_rows() -> list[dict[str, str]]:
         rows = [row for row in csv.DictReader(handle) if row["split"] == "train"]
     rng = random.Random(42)
     selected: list[dict[str, str]] = []
-    for sample_type, count in (("Primary Tumor", 8), ("Solid Tissue Normal", 7)):
+    for sample_type, count in (("Primary Tumor", 7), ("Solid Tissue Normal", 8)):
         candidates = [row for row in rows if row["sample_type"] == sample_type]
         rng.shuffle(candidates)
         cases: set[str] = set()
@@ -75,7 +75,7 @@ def main() -> None:
     (POOL_ROOT / "catalog.json").write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
     (POOL_ROOT / "README.md").write_text(
         "# Public dataset pool\n\n"
-        "This deterministic pool contains eight Primary Tumor and seven Solid Tissue Normal "
+        "This deterministic pool contains seven Primary Tumor and eight Solid Tissue Normal "
         "GDC STAR-counts files selected from the training split with seed 42. The API exposes "
         "anonymous demo IDs and resolves files server-side; it never sends these files to the browser.\n",
         encoding="utf-8",

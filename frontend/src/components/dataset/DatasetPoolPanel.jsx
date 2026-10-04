@@ -438,6 +438,7 @@ export default function DatasetPoolPanel({
      ------------------------------------------------------- */
 
   const prediction = firstDefined(
+    analysis?.deployment_prediction,
     analysis?.prediction,
     analysis?.result?.prediction,
     analysis?.classification,
@@ -445,6 +446,7 @@ export default function DatasetPoolPanel({
   );
 
   const predictedLabel = firstDefined(
+    analysis?.deployment_prediction?.predicted_class,
     prediction?.label,
     prediction?.class_label,
     prediction?.prediction,
@@ -455,6 +457,7 @@ export default function DatasetPoolPanel({
   );
 
   const predictedProbability = firstDefined(
+    analysis?.deployment_prediction?.tumor_probability,
     prediction?.probability,
     prediction?.confidence,
     prediction?.score,
@@ -464,6 +467,7 @@ export default function DatasetPoolPanel({
   );
 
   const selectedModel = firstDefined(
+    analysis?.deployment_prediction?.model,
     analysis?.model_selection?.selected_model,
     analysis?.model_selection?.model,
     analysis?.selected_model,
@@ -479,6 +483,7 @@ export default function DatasetPoolPanel({
   );
 
   const fallbackUsed = firstDefined(
+    analysis?.quantum?.fallback_used,
     analysis?.fallback_used,
     analysis?.runtime?.fallback_used,
     analysis?.inference?.fallback_used
@@ -969,7 +974,7 @@ export default function DatasetPoolPanel({
 
                     <div className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] p-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
-                        Confidence
+                        Tumor probability
                       </div>
 
                       <div className="mt-1 text-lg font-extrabold text-[var(--bq-text)]">

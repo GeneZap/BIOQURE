@@ -61,6 +61,7 @@ export default function ReportMetrics({
   dataset,
 }) {
   const prediction = firstDefined(
+    analysis?.deployment_prediction?.predicted_class,
     analysis?.prediction?.label,
     analysis?.prediction?.class_label,
     analysis?.prediction?.prediction,
@@ -72,7 +73,8 @@ export default function ReportMetrics({
       : null
   );
 
-  const confidence = firstDefined(
+  const tumorProbability = firstDefined(
+    analysis?.deployment_prediction?.tumor_probability,
     analysis?.prediction?.probability,
     analysis?.prediction?.confidence,
     analysis?.prediction?.score,
@@ -82,6 +84,7 @@ export default function ReportMetrics({
   );
 
   const selectedModel = firstDefined(
+    analysis?.deployment_prediction?.model,
     analysis?.model_selection?.selected_model,
     analysis?.model_selection?.model,
     analysis?.selected_model,
@@ -97,6 +100,7 @@ export default function ReportMetrics({
   );
 
   const fallbackUsed = firstDefined(
+    analysis?.quantum?.fallback_used,
     analysis?.fallback_used,
     analysis?.runtime?.fallback_used,
     analysis?.inference?.fallback_used
@@ -111,9 +115,9 @@ export default function ReportMetrics({
       />
 
       <MetricCard
-        label="Confidence"
-        value={formatPercent(confidence)}
-        description="Reported inference probability"
+        label="Tumor probability"
+        value={formatPercent(tumorProbability)}
+        description="Probability from the selected deployment model"
       />
 
       <MetricCard

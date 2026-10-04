@@ -144,26 +144,28 @@ export default function ReportInputMetrics({
   const preprocessingTime = firstDefined(
     runtime?.preprocessing_time_ms,
     runtime?.preprocess_time_ms,
-    preprocessing?.duration_ms
+    preprocessing?.duration_ms,
+    analysis?.timing_ms?.preprocessing
   );
 
   const inferenceTime = firstDefined(
     runtime?.inference_time_ms,
     runtime?.prediction_time_ms,
-    runtime?.duration_ms
+    runtime?.duration_ms,
+    analysis?.timing_ms?.quantum_inference
   );
 
   const totalTime = firstDefined(
     runtime?.total_time_ms,
     runtime?.elapsed_ms,
-    analysis?.elapsed_ms
+    analysis?.elapsed_ms,
+    analysis?.timing_ms?.total
   );
 
   const transform = firstDefined(
     preprocessing?.transform,
     preprocessing?.transformation,
-    preprocessing?.normalization,
-    "log2(TPM + 1)"
+    preprocessing?.normalization
   );
 
   const featureSelection = firstDefined(
@@ -253,7 +255,7 @@ export default function ReportInputMetrics({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Transformation"
-            value={transform}
+            value={transform || "Not reported"}
             description="Expression transformation"
           />
 
@@ -326,7 +328,7 @@ export default function ReportInputMetrics({
           <div className="mt-4 overflow-hidden rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface)] px-4">
             <InfoRow
               label="Transformation"
-              value={transform}
+              value={transform || "Not reported"}
             />
 
             <InfoRow

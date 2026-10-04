@@ -48,7 +48,9 @@ class InferenceIntegrationTests(unittest.TestCase):
             parse_star_counts(b"not a STAR counts file")
 
     def test_locked_inference_schema_fixed_aggregation_and_thresholds(self):
-        result = self.engine.infer(fixture_bytes(), "demo", "BRCA-DEMO-001", "Primary Tumor")
+        result = self.engine.infer(
+            fixture_bytes(), "demo", "BRCA-DEMO-001", "Solid Tissue Normal"
+        )
         self.assertEqual(result["model_lock"]["feature_count"], 8)
         self.assertEqual([row["gene_name"] for row in result["biomarkers"]], list(FEATURE_NAMES))
         self.assertEqual(result["predictions"]["classical_logistic"]["threshold"], 0.50)
@@ -59,13 +61,25 @@ class InferenceIntegrationTests(unittest.TestCase):
         for prediction in result["predictions"].values():
             self.assertTrue(0.0 <= prediction["tumor_probability"] <= 1.0)
         self.assertIn("all_models_agree", result["agreement"])
+        self.assertEqual(result["deployment_prediction"]["model"], "classical_logistic")
+        self.assertEqual(result["input"]["sample_count"], 1)
+        self.assertGreater(result["input"]["gene_count"], 8)
+        self.assertEqual(result["input"]["selected_feature_count"], 8)
+        self.assertEqual(result["input"]["missing_feature_count"], 0)
+        self.assertEqual(result["preprocessing"]["feature_names"], list(FEATURE_NAMES))
+        self.assertTrue(result["quantum"]["used"])
+        self.assertFalse(result["quantum"]["fallback_used"])
+        self.assertEqual(result["quantum"]["shots"], 2048)
+        self.assertEqual(result["benchmark"]["selected_model"], "classical_logistic")
+        self.assertIn("total_time_ms", result["runtime"])
 
     def test_demo_pool_is_training_only_and_hashes_are_unchanged(self):
         pool = json.loads((ROOT / "public_dataset_pool/catalog.json").read_text())
         self.assertEqual(len(pool), 15)
-        self.assertEqual(sum(item["sample_type"] == "Primary Tumor" for item in pool), 8)
-        self.assertEqual(sum(item["sample_type"] == "Solid Tissue Normal" for item in pool), 7)
+        self.assertEqual(sum(item["sample_type"] == "Primary Tumor" for item in pool), 7)
+        self.assertEqual(sum(item["sample_type"] == "Solid Tissue Normal" for item in pool), 8)
         self.assertTrue(all(item["split"] == "train" for item in pool))
+        self.assertTrue(all("quality_score" not in item for item in pool))
         self.assertTrue(all((ROOT / "public_dataset_pool/raw" / f"{item['demo_id']}.rna_seq.augmented_star_gene_counts.tsv").is_file() for item in pool))
         lock = ROOT / "configs/final_model_lock.json"
         expected = hashlib.sha256(lock.read_bytes()).hexdigest()
