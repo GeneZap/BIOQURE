@@ -1,0 +1,4 @@
+backend/public_dataset_pool/raw/*.tsv filter=lfs diff=lfs merge=lfs -text
+backend/runtime/model_artifacts/**/*.dill filter=lfs diff=lfs merge=lfs -text
+backend/runtime/model_artifacts/**/*.joblib filter=lfs diff=lfs merge=lfs -text
+frontend/demo-scripts/**/* filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,286 @@
+import React from "react";
+
+function firstDefined(...values) {
+  return values.find(
+    (value) => value !== undefined && value !== null && value !== ""
+  );
+}
+
+function StatusBadge({ active }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+        active
+          ? "border-violet-400/30 bg-violet-400/10 text-violet-300"
+          : "border-[var(--bq-border)] bg-[var(--bq-surface-alt)] text-[var(--bq-text-dim)]"
+      }`}
+    >
+      {active ? "Active" : "Not used"}
+    </span>
+  );
+}
+
+function InfoRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-[var(--bq-border)] py-3 last:border-b-0">
+      <span className="text-xs font-medium text-[var(--bq-text-dim)]">
+        {label}
+      </span>
+
+      <span className="max-w-[65%] break-words text-right text-xs font-bold text-[var(--bq-text)]">
+        {value ?? "—"}
+      </span>
+    </div>
+  );
+}
+
+export default function ReportQuantum({
+  analysis,
+}) {
+  const quantum =
+    analysis?.quantum ??
+    analysis?.quantum_metadata ??
+    analysis?.runtime?.quantum ??
+    {};
+
+  const used = firstDefined(
+    quantum?.used,
+    analysis?.quantum_used,
+    analysis?.runtime?.quantum_used
+  );
+
+  const fallbackUsed = firstDefined(
+    analysis?.fallback_used,
+    analysis?.runtime?.fallback_used
+  );
+
+  const backend = firstDefined(
+    quantum?.backend,
+    quantum?.backend_name,
+    quantum?.execution_backend,
+    analysis?.runtime?.backend,
+    analysis?.runtime?.backend_name
+  );
+
+  const simulator = firstDefined(
+    quantum?.simulator,
+    quantum?.device,
+    quantum?.execution_mode
+  );
+
+  const shots = firstDefined(
+    quantum?.shots,
+    quantum?.num_shots,
+    analysis?.runtime?.shots
+  );
+
+  const featureMap = firstDefined(
+    quantum?.feature_map,
+    quantum?.featureMap,
+    quantum?.encoding,
+    "ZZFeatureMap"
+  );
+
+  const ansatz = firstDefined(
+    quantum?.ansatz,
+    quantum?.variational_form,
+    quantum?.variational_circuit,
+    "RealAmplitudes"
+  );
+
+  const optimizer = firstDefined(
+    quantum?.optimizer,
+    quantum?.optimization_method,
+    quantum?.training_optimizer
+  );
+
+  const qubits = firstDefined(
+    quantum?.qubits,
+    quantum?.num_qubits,
+    quantum?.n_qubits
+  );
+
+  const depth = firstDefined(
+    quantum?.depth,
+    quantum?.circuit_depth
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-black text-[var(--bq-text)]">
+              Quantum inference
+            </h3>
+
+            <span className="inline-flex items-center rounded-full border border-violet-400/30 bg-violet-400/10 px-2.5 py-1 text-[11px] font-semibold text-violet-300">
+              Qiskit VQC
+            </span>
+          </div>
+
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--bq-text-dim)]">
+            Quantum execution metadata returned by the BIOQURE inference
+            service. Values are displayed from the backend response and are
+            not inferred by the frontend.
+          </p>
+        </div>
+
+        <StatusBadge active={used === true} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-4">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+            Quantum path
+          </div>
+
+          <div className="mt-2 text-lg font-extrabold text-[var(--bq-text)]">
+            {used === true
+              ? "Used"
+              : used === false
+                ? "Not used"
+                : "—"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-4">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+            Qubits
+          </div>
+
+          <div className="mt-2 text-lg font-extrabold text-[var(--bq-text)]">
+            {qubits ?? "—"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-4">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+            Shots
+          </div>
+
+          <div className="mt-2 text-lg font-extrabold text-[var(--bq-text)]">
+            {shots ?? "—"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-4">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+            Fallback
+          </div>
+
+          <div className="mt-2 text-lg font-extrabold text-[var(--bq-text)]">
+            {fallbackUsed === true
+              ? "Used"
+              : fallbackUsed === false
+                ? "Not used"
+                : "—"}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* Architecture */}
+        <div className="rounded-2xl border border-violet-400/30 bg-violet-400/10 p-5">
+          <div className="text-xs font-bold uppercase tracking-[0.12em] text-violet-400">
+            Circuit architecture
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-xl border border-violet-400/30 bg-[var(--bq-surface)]">
+            <div className="px-4">
+              <InfoRow
+                label="Feature map"
+                value={featureMap}
+              />
+
+              <InfoRow
+                label="Variational ansatz"
+                value={ansatz}
+              />
+
+              <InfoRow
+                label="Optimizer"
+                value={optimizer}
+              />
+
+              <InfoRow
+                label="Circuit depth"
+                value={depth}
+              />
+
+              <InfoRow
+                label="Qubits"
+                value={qubits}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Runtime */}
+        <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] p-5">
+          <div className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+            Quantum runtime
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface)]">
+            <div className="px-4">
+              <InfoRow
+                label="Backend"
+                value={backend}
+              />
+
+              <InfoRow
+                label="Execution mode"
+                value={simulator}
+              />
+
+              <InfoRow
+                label="Shots"
+                value={shots}
+              />
+
+              <InfoRow
+                label="Quantum execution"
+                value={
+                  used === true
+                    ? "Enabled"
+                    : used === false
+                      ? "Disabled"
+                      : "Not reported"
+                }
+              />
+
+              <InfoRow
+                label="Classical fallback"
+                value={
+                  fallbackUsed === true
+                    ? "Enabled"
+                    : fallbackUsed === false
+                      ? "Not used"
+                      : "Not reported"
+                }
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Raw quantum metadata */}
+      <details className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)]">
+        <summary className="cursor-pointer px-4 py-3 text-xs font-bold text-[var(--bq-text-dim)]">
+          View complete quantum metadata
+        </summary>
+
+        <div className="border-t border-[var(--bq-border)] p-4">
+          <pre className="max-h-[420px] overflow-auto rounded-xl bg-[#05080c] p-4 text-[10px] leading-5 text-[var(--bq-text-dim)]">
+            {JSON.stringify(
+              quantum,
+              null,
+              2
+            )}
+          </pre>
+        </div>
+      </details>
+    </div>
+  );
+}

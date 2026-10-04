@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bioqure-inference
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: BIOQURE_CORS_ORIGINS
+        value: https://bioqure.vercel.app

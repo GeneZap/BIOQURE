@@ -1,0 +1,27 @@
+.git
+.github
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+**/venv
+**/node_modules
+frontend/dist
+frontend/.vercel
+backend/quantum_test
+backend/training_outputs
+backend/prepared_ratio_*
+backend/metadata extraction/gdc_data
+gdc_download_*
+CV_HACKATHON_MODEL_DATASET
+**/*.npy
+**/*.parquet
+**/*.joblib
+**/*.dill
+!backend/runtime/model_artifacts/**/*.joblib
+!backend/runtime/model_artifacts/**/*.dill
+!backend/runtime/config/runtime_model_manifest.json
+!backend/public_dataset_pool/raw/*.tsv
+**/CNN_CGR_DATASET*
+**/DATASET
+*.zip

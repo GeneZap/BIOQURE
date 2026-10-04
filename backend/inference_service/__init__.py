@@ -1,0 +1,1 @@
+"""Single-sample BioQure inference service."""

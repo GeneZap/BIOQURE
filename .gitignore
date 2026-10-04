@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/quantum_test/
+backend/.venv*/
+*.egg-info/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+uploads/
+temp/
+tmp/
+logs/
+*.log
+.env
+.env.*
+
+# Research-only source data and generated model inputs
+backend/metadata extraction/gdc_data/
+backend/prepared_ratio_*/
+backend/training_outputs/
+backend/ansatz1_predictions/
+backend/ratio1_analysis_bundle/
+gdc_download_*/
+CV_HACKATHON_MODEL_DATASET/
+*.parquet
+*.npy
+
+# Large / generated data (keep CSV in backend/data tracked if you want)
+backend/bacterial_dna/
+*.zip
+
+# GitHub rejects blobs >100MB; keep these locally or use Git LFS / releases
+backend/V2_Model_Output/v2_multi_input_model.pkl
+backend/V3_Model_Output/v3_vision_model.h5
+backend/V3_CNN MODEL TRAINING/V3_Model_Output/v3_vision_model.h5
+
+# Optional: uncomment if model binaries are large or secret
+# backend/models/*.pkl
+# backend/models/*.h5
+
+# Managed FASTA pools + batch jobs (local only; use GENEZAP_DATASETS_ROOT to relocate)
+data/datasets/*
+!data/datasets/.gitkeep
+!data/datasets/pools/default-public-pool/
+!data/datasets/pools/default-public-pool/**
