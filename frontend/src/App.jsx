@@ -2,14 +2,13 @@ import React, { useMemo, useState } from "react";
 import {
   Search,
   Bell,
-  Activity,
-  Atom,
   Cpu,
   Database,
   ScanSearch,
   SlidersHorizontal,
   Sparkles,
   Compass,
+  BookOpen,
 } from "lucide-react";
 import DatasetPoolPanel from "./components/dataset/DatasetPoolPanel.jsx";
 import ReportMetrics from "./components/report/ReportMetrics.jsx";
@@ -82,6 +81,31 @@ function getModel(result) {
   );
 }
 
+function getBiomarkers(result, limit = 4) {
+  const source =
+    result?.biomarkers ??
+    result?.biomarker_summary ??
+    result?.result?.biomarkers ??
+    [];
+
+  const list = Array.isArray(source)
+    ? source
+    : Object.entries(source || {}).map(([gene, value]) => ({ gene, value }));
+
+  return list.slice(0, limit).map((item, index) => ({
+    gene: firstDefined(item?.gene, item?.gene_name, item?.feature, item?.name, `Feature ${index + 1}`),
+    value: firstDefined(item?.value, item?.expression, item?.score, item?.importance, item?.signal),
+  }));
+}
+
+function formatConfidence(value) {
+  if (value === undefined || value === null || value === "") return "—";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value);
+  const pct = number >= 0 && number <= 1 ? number * 100 : number;
+  return `${pct.toFixed(1)}%`;
+}
+
 function getQuantumState(result) {
   const value = firstDefined(
     result?.quantum?.used,
@@ -137,6 +161,117 @@ function TabButton({
   );
 }
 
+function SimpleView({ analysis, selectedModel, prediction, confidence, quantumState }) {
+  const biomarkers = useMemo(() => getBiomarkers(analysis, 4), [analysis]);
+  const confidenceText = formatConfidence(confidence);
+
+  return (
+    <div className="space-y-5">
+      <div className="bq-hud p-5 sm:p-6">
+        <span className="bq-panel-title -ml-5 -mt-5 sm:-ml-6">Final result</span>
+
+        <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-2xl font-bold text-[var(--bq-text)]">{prediction}</div>
+            <p className="mt-1 max-w-md text-sm leading-6 text-[var(--bq-text-dim)]">
+              This is what the selected model classified the sample as, based on its gene-expression data.
+            </p>
+          </div>
+
+          <div className="shrink-0 rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] px-5 py-4 text-center">
+            <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+              Confidence level
+            </div>
+            <div className="bq-mono mt-1 text-2xl font-bold text-[var(--bq-accent-strong)]">
+              {confidenceText}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bq-hud p-5 sm:p-6">
+        <span className="bq-panel-title -ml-5 -mt-5 sm:-ml-6">Key findings</span>
+        <ul className="mt-4 space-y-2.5 text-sm leading-6 text-[var(--bq-text-dim)]">
+          <li>
+            • The model used for this result was <span className="font-semibold text-[var(--bq-text)]">{selectedModel}</span>.
+          </li>
+          <li>
+            • Quantum computation was{" "}
+            <span className="font-semibold text-[var(--bq-text)]">
+              {quantumState === "Used" ? "used for this run" : quantumState === "Not used" ? "not used — a classical model handled this run" : "not reported"}
+            </span>.
+          </li>
+          <li>
+            • This result reflects the dataset selected above — it is one sample, not a population-wide finding.
+          </li>
+        </ul>
+      </div>
+
+      <div className="bq-hud p-5 sm:p-6">
+        <span className="bq-panel-title -ml-5 -mt-5 sm:-ml-6">Important biomarkers</span>
+        {biomarkers.length > 0 ? (
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+            {biomarkers.map((b, i) => (
+              <div key={`${b.gene}-${i}`} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] px-3.5 py-2.5">
+                <span className="bq-mono text-xs font-semibold text-[var(--bq-text)]">{b.gene}</span>
+                <span className="bq-mono text-xs text-[var(--bq-text-dim)]">
+                  {typeof b.value === "number" ? b.value.toFixed(3) : String(b.value ?? "—")}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-[var(--bq-text-dim)]">No biomarker signals were returned for this run.</p>
+        )}
+        <p className="mt-3 text-xs leading-5 text-[var(--bq-text-faint)]">
+          These are the genes that most influenced the model's prediction. See "Advanced Details" below for the full ranked list.
+        </p>
+      </div>
+
+      <div className="bq-hud p-5 sm:p-6">
+        <span className="bq-panel-title -ml-5 -mt-5 sm:-ml-6">Recommended next steps</span>
+        <ul className="mt-4 space-y-2 text-sm leading-6 text-[var(--bq-text-dim)]">
+          <li>• Open "Advanced Details" below to review the full model comparison and quantum run data.</li>
+          <li>• Compare this result against another dataset to see how consistent the prediction is.</li>
+          <li>• This is a research tool, not a diagnosis — any clinical decision should involve a qualified professional.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ReadGuide() {
+  const items = [
+    ["Prediction", "The model's classification for this sample (e.g. tumour-like vs normal-like)."],
+    ["Confidence", "How strongly the selected model supports that prediction, as a percentage."],
+    ["Selected model", "Which model (classical or quantum) was used to produce the result shown."],
+    ["Quantum path", "Whether the quantum circuit was actually used, or the platform fell back to a classical model."],
+    ["Benchmark", "Accuracy, AUC, and F1 scores comparing every model on the same held-out data — higher is better for all three."],
+    ["Biomarkers", "The genes/features that most influenced this prediction, ranked by signal strength."],
+    ["Warnings", "Amber notices call out limitations or fallback behaviour; they don't mean the run failed."],
+  ];
+
+  return (
+    <details className="bq-collapsible">
+      <summary>
+        <span className="flex items-center gap-2">
+          <BookOpen className="size-4 text-[var(--bq-text-faint)]" aria-hidden />
+          How to read this report
+        </span>
+        <span className="text-[11px] font-normal text-[var(--bq-text-faint)]">Click to expand</span>
+      </summary>
+      <dl className="grid gap-3 p-4 sm:grid-cols-2">
+        {items.map(([term, desc]) => (
+          <div key={term}>
+            <dt className="text-xs font-bold text-[var(--bq-text)]">{term}</dt>
+            <dd className="mt-0.5 text-xs leading-5 text-[var(--bq-text-dim)]">{desc}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 function HudPanel({ title, action, className = "", children }) {
   return (
     <div className={`bq-hud-frame ${className}`}>
@@ -171,7 +306,7 @@ function WorkflowStep({
 }) {
   return (
     <div className="bq-hud-frame group">
-      <div className="bq-hud flex items-center gap-3 px-3 py-2.5 [--bq-chamfer:8px] group-hover:translate-x-1">
+      <div className="bq-hud flex items-center gap-3 px-3 py-2.5 group-hover:translate-x-1">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--bq-border-strong)] bg-[var(--bq-surface-alt)] text-[var(--bq-text-dim)] transition-colors group-hover:border-[var(--bq-accent)] group-hover:text-[var(--bq-accent-strong)]">
           {Icon ? <Icon className="size-4" aria-hidden /> : <span className="text-[10px] font-bold">{number}</span>}
         </span>
@@ -182,19 +317,6 @@ function WorkflowStep({
           </div>
           <div className="bq-mono text-[10px] text-[var(--bq-text-faint)]">Step {number}</div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function FeatureChip({ icon: Icon, children }) {
-  return (
-    <div className="bq-hud-frame group">
-      <div className="bq-hud flex items-center gap-2.5 px-3 py-2.5 [--bq-chamfer:8px]">
-        <Icon className="size-4 shrink-0 text-[var(--bq-text-dim)] transition-colors group-hover:text-[var(--bq-accent-strong)]" aria-hidden />
-        <span className="text-xs font-medium text-[var(--bq-text-dim)] transition-colors group-hover:text-[var(--bq-text)]">
-          {children}
-        </span>
       </div>
     </div>
   );
@@ -230,6 +352,7 @@ export default function App() {
   const [selectedDataset, setSelectedDataset] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [reportMode, setReportMode] = useState("simple");
   const [activeNav, setActiveNav] = useState("overview");
 
   const prediction = useMemo(
@@ -266,11 +389,7 @@ export default function App() {
     }
 
     setActiveTab("overview");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    setReportMode("simple");
   }
 
   function handleNav(id) {
@@ -280,8 +399,6 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen text-[var(--bq-text)]">
-      <div className="bq-starfield" aria-hidden />
-
       {/* =====================================================
           HEADER
           ===================================================== */}
@@ -292,8 +409,8 @@ export default function App() {
             <LogoMark />
 
             <div className="min-w-0">
-              <div className="bq-display truncate text-xl font-semibold tracking-[0.08em]">
-                <span className="bq-shimmer-text">BIOQU</span>
+              <div className="bq-display truncate text-xl font-bold tracking-[0.04em]">
+                <span className="text-[var(--bq-text)]">BIOQU</span>
                 <span className="text-[var(--bq-accent)]">RE</span>
               </div>
 
@@ -318,7 +435,7 @@ export default function App() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
-            <div className="bq-hud hidden w-64 items-center gap-2 px-3 py-2.5 [--bq-chamfer:8px] lg:flex">
+            <div className="bq-hud hidden w-64 items-center gap-2 px-3 py-2.5 lg:flex">
               <Search className="size-4 shrink-0 text-[var(--bq-text-faint)]" aria-hidden />
               <input
                 type="text"
@@ -353,7 +470,7 @@ export default function App() {
           MAIN
           ===================================================== */}
 
-      <main className="relative z-10 mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
         {/* ===================================================
             HERO
             =================================================== */}
@@ -363,9 +480,7 @@ export default function App() {
           data-tour="dashboard"
           className="bq-grid-bg bq-rise relative scroll-mt-24 overflow-hidden rounded-3xl border border-[var(--bq-border)] bg-[var(--bq-bg)]/70"
         >
-          <div className="bq-scan" aria-hidden />
-
-          <div className="grid gap-6 px-5 py-7 lg:grid-cols-[0.95fr_1.15fr_0.85fr] lg:px-8 lg:py-9">
+          <div className="grid gap-7 px-5 py-8 lg:grid-cols-[0.95fr_1.15fr_0.85fr] lg:px-8 lg:py-10">
             <div className="relative z-10 flex flex-col lg:py-4">
               <div className="bq-rise bq-delay-1 flex flex-wrap items-center gap-2">
                 <Badge tone="blue">
@@ -391,12 +506,6 @@ export default function App() {
                 metadata from a single research workspace.
               </p>
 
-              <div className="bq-rise bq-delay-4 mt-auto grid gap-2.5 pt-6 sm:grid-cols-2">
-                <FeatureChip icon={Database}>Curated TCGA/GDC datasets</FeatureChip>
-                <FeatureChip icon={SlidersHorizontal}>Shared preprocessing</FeatureChip>
-                <FeatureChip icon={Activity}>Classical baseline</FeatureChip>
-                <FeatureChip icon={Atom}>Qiskit VQC</FeatureChip>
-              </div>
             </div>
 
             <div className="bq-rise bq-delay-2 relative flex min-h-[520px] md:min-h-[600px]">
@@ -456,7 +565,7 @@ export default function App() {
             DATASET WORKSPACE
             =================================================== */}
 
-        <section id="datasets" className="bq-rise bq-delay-3 mt-6 scroll-mt-24">
+        <section id="datasets" className="bq-rise bq-delay-3 mt-8 scroll-mt-24">
           <DatasetPoolPanel
             selectedDatasetId={selectedDataset?.id}
             onDatasetSelect={handleDatasetSelect}
@@ -469,7 +578,7 @@ export default function App() {
             =================================================== */}
 
         {analysis ? (
-          <section id="report" data-tour="report" className="bq-rise mt-6 scroll-mt-24">
+          <section id="report" data-tour="report" className="bq-rise mt-8 scroll-mt-24">
             <div className="overflow-hidden rounded-3xl border border-[var(--bq-border)] bg-[var(--bq-surface)]/90 backdrop-blur-sm">
               {/* Report header */}
               <div className="border-b border-[var(--bq-border)] px-5 py-5 sm:px-6">
@@ -513,45 +622,31 @@ export default function App() {
                 </div>
 
                 {/* =================================================
-                    REPORT TABS
+                    SIMPLE / ADVANCED TOGGLE
                     ================================================= */}
 
-                <div data-tour="report-tabs" className="mt-5 flex flex-wrap gap-1 border-b border-[var(--bq-border)] pb-2">
-                  <TabButton
-                    active={activeTab === "overview"}
-                    onClick={() => setActiveTab("overview")}
+                <div className="mt-5 inline-flex gap-1 rounded-lg border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] p-1">
+                  <button
+                    type="button"
+                    onClick={() => setReportMode("simple")}
+                    className="bq-sub-tab"
+                    data-active={reportMode === "simple" ? "true" : "false"}
                   >
-                    Overview
-                  </TabButton>
-
-                  <TabButton
-                    active={activeTab === "benchmark"}
-                    onClick={() => setActiveTab("benchmark")}
+                    Simple view
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportMode("advanced")}
+                    className="bq-sub-tab"
+                    data-active={reportMode === "advanced" ? "true" : "false"}
                   >
-                    Benchmark
-                  </TabButton>
-
-                  <TabButton
-                    active={activeTab === "quantum"}
-                    onClick={() => setActiveTab("quantum")}
-                  >
-                    Quantum
-                  </TabButton>
-
-                  <TabButton
-                    active={activeTab === "biomarkers"}
-                    onClick={() => setActiveTab("biomarkers")}
-                  >
-                    Biomarkers
-                  </TabButton>
-
-                  <TabButton
-                    active={activeTab === "input"}
-                    onClick={() => setActiveTab("input")}
-                  >
-                    Input metrics
-                  </TabButton>
+                    Advanced details
+                  </button>
                 </div>
+              </div>
+
+              <div className="px-5 pt-5 sm:px-6">
+                <ReadGuide />
               </div>
 
               {/* =================================================
@@ -559,159 +654,210 @@ export default function App() {
                   ================================================= */}
 
               <div className="p-5 sm:p-6">
-                {/* OVERVIEW */}
-                {activeTab === "overview" && (
+                {reportMode === "simple" && (
+                  <SimpleView
+                    analysis={analysis}
+                    selectedModel={selectedModel}
+                    prediction={prediction}
+                    confidence={confidence}
+                    quantumState={quantumState}
+                  />
+                )}
+
+                {reportMode === "advanced" && (
                   <div className="space-y-5">
-                    <ReportMetrics
-                      analysis={analysis}
-                      dataset={selectedDataset}
-                    />
+                    <div data-tour="report-tabs" className="flex flex-wrap gap-1 border-b border-[var(--bq-border)] pb-2">
+                      <TabButton
+                        active={activeTab === "overview"}
+                        onClick={() => setActiveTab("overview")}
+                      >
+                        Overview
+                      </TabButton>
 
-                    <div className="grid gap-5 lg:grid-cols-2">
-                      <div className="bq-hud p-5">
-                        <span className="bq-panel-title -ml-5 -mt-5">Model execution</span>
+                      <TabButton
+                        active={activeTab === "benchmark"}
+                        onClick={() => setActiveTab("benchmark")}
+                      >
+                        Benchmark
+                      </TabButton>
 
-                        <div className="mt-4 space-y-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Selected model
-                            </span>
+                      <TabButton
+                        active={activeTab === "quantum"}
+                        onClick={() => setActiveTab("quantum")}
+                      >
+                        Quantum
+                      </TabButton>
 
-                            <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {selectedModel}
-                            </span>
-                          </div>
+                      <TabButton
+                        active={activeTab === "biomarkers"}
+                        onClick={() => setActiveTab("biomarkers")}
+                      >
+                        Biomarkers
+                      </TabButton>
 
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Prediction
-                            </span>
-
-                            <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {prediction}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Confidence
-                            </span>
-
-                            <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {confidence !== undefined &&
-                              confidence !== null
-                                ? confidence
-                                : "—"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Quantum path
-                            </span>
-
-                            <Badge
-                              tone={
-                                quantumState === "Used"
-                                  ? "purple"
-                                  : "neutral"
-                              }
-                            >
-                              {quantumState}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bq-hud p-5">
-                        <span className="bq-panel-title -ml-5 -mt-5">Dataset context</span>
-
-                        <div className="mt-4 space-y-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Dataset ID
-                            </span>
-
-                            <span className="font-mono text-xs font-bold text-[var(--bq-text)]">
-                              {selectedDataset?.id || "—"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Project
-                            </span>
-
-                            <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {selectedDataset?.project || "—"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Source
-                            </span>
-
-                            <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {selectedDataset?.source || "—"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between gap-4">
-                            <span className="text-sm text-[var(--bq-text-dim)]">
-                              Data type
-                            </span>
-
-                            <span className="text-sm font-bold text-[var(--bq-text)]">
-                              {selectedDataset?.dataType || "—"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                      <TabButton
+                        active={activeTab === "input"}
+                        onClick={() => setActiveTab("input")}
+                      >
+                        Input metrics
+                      </TabButton>
                     </div>
 
-                    <div className="border border-[var(--bq-amber)]/40 bg-[var(--bq-amber)]/10 p-4">
-                      <div className="text-xs font-bold text-amber-300">
-                        Research-use notice
-                      </div>
+                    {/* OVERVIEW */}
+                    {activeTab === "overview" && (
+                      <div className="space-y-5">
+                        <ReportMetrics
+                          analysis={analysis}
+                          dataset={selectedDataset}
+                        />
 
-                      <p className="mt-1 text-xs leading-5 text-amber-300">
-                        BIOQURE presents computational research output for
-                        exploration and benchmarking. Model predictions and
-                        biomarker signals should not be interpreted as a
-                        standalone clinical diagnosis or treatment decision.
-                      </p>
-                    </div>
+                        <div className="grid gap-5 lg:grid-cols-2">
+                          <div className="bq-hud p-5">
+                            <span className="bq-panel-title -ml-5 -mt-5">Model execution</span>
+
+                            <div className="mt-4 space-y-3">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Selected model
+                                </span>
+
+                                <span className="text-sm font-bold text-[var(--bq-text)]">
+                                  {selectedModel}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Prediction
+                                </span>
+
+                                <span className="text-sm font-bold text-[var(--bq-text)]">
+                                  {prediction}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Confidence
+                                </span>
+
+                                <span className="text-sm font-bold text-[var(--bq-text)]">
+                                  {confidence !== undefined &&
+                                  confidence !== null
+                                    ? confidence
+                                    : "—"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Quantum path
+                                </span>
+
+                                <Badge
+                                  tone={
+                                    quantumState === "Used"
+                                      ? "purple"
+                                      : "neutral"
+                                  }
+                                >
+                                  {quantumState}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bq-hud p-5">
+                            <span className="bq-panel-title -ml-5 -mt-5">Dataset context</span>
+
+                            <div className="mt-4 space-y-3">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Dataset ID
+                                </span>
+
+                                <span className="font-mono text-xs font-bold text-[var(--bq-text)]">
+                                  {selectedDataset?.id || "—"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Project
+                                </span>
+
+                                <span className="text-sm font-bold text-[var(--bq-text)]">
+                                  {selectedDataset?.project || "—"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Source
+                                </span>
+
+                                <span className="text-sm font-bold text-[var(--bq-text)]">
+                                  {selectedDataset?.source || "—"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-sm text-[var(--bq-text-dim)]">
+                                  Data type
+                                </span>
+
+                                <span className="text-sm font-bold text-[var(--bq-text)]">
+                                  {selectedDataset?.dataType || "—"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="border border-[var(--bq-amber)]/40 bg-[var(--bq-amber)]/10 p-4">
+                          <div className="text-xs font-bold text-amber-300">
+                            Research-use notice
+                          </div>
+
+                          <p className="mt-1 text-xs leading-5 text-amber-300">
+                            BIOQURE presents computational research output for
+                            exploration and benchmarking. Model predictions and
+                            biomarker signals should not be interpreted as a
+                            standalone clinical diagnosis or treatment decision.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* BENCHMARK */}
+                    {activeTab === "benchmark" && (
+                      <ReportBenchmark
+                        analysis={analysis}
+                      />
+                    )}
+
+                    {/* QUANTUM */}
+                    {activeTab === "quantum" && (
+                      <ReportQuantum
+                        analysis={analysis}
+                      />
+                    )}
+
+                    {/* BIOMARKERS */}
+                    {activeTab === "biomarkers" && (
+                      <ReportBiomarkers
+                        analysis={analysis}
+                      />
+                    )}
+
+                    {/* INPUT METRICS */}
+                    {activeTab === "input" && (
+                      <ReportInputMetrics
+                        analysis={analysis}
+                        dataset={selectedDataset}
+                      />
+                    )}
                   </div>
-                )}
-
-                {/* BENCHMARK */}
-                {activeTab === "benchmark" && (
-                  <ReportBenchmark
-                    analysis={analysis}
-                  />
-                )}
-
-                {/* QUANTUM */}
-                {activeTab === "quantum" && (
-                  <ReportQuantum
-                    analysis={analysis}
-                  />
-                )}
-
-                {/* BIOMARKERS */}
-                {activeTab === "biomarkers" && (
-                  <ReportBiomarkers
-                    analysis={analysis}
-                  />
-                )}
-
-                {/* INPUT METRICS */}
-                {activeTab === "input" && (
-                  <ReportInputMetrics
-                    analysis={analysis}
-                    dataset={selectedDataset}
-                  />
                 )}
               </div>
             </div>
@@ -721,7 +867,7 @@ export default function App() {
              EMPTY REPORT STATE
              =================================================== */
 
-          <section id="report" data-tour="report" className="bq-hud bq-rise bq-delay-4 mt-6 scroll-mt-24 px-5 py-10 text-center sm:px-8">
+          <section id="report" data-tour="report" className="bq-hud bq-rise bq-delay-4 mt-8 scroll-mt-24 px-5 py-12 text-center sm:px-8">
             <div className="mx-auto flex h-12 w-12 items-center justify-center border border-[var(--bq-border-strong)] bg-[var(--bq-accent)]/10 text-[var(--bq-accent-strong)]">
               <ScanSearch className="size-5" aria-hidden />
             </div>

@@ -126,9 +126,9 @@ export function ChatAssistant({ hasResult, analyzing }) {
             key="panel"
             role="dialog"
             aria-label="BIOQURE assistant chat"
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
             className="flex w-[min(100vw-2rem,22rem)] flex-col overflow-hidden rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] sm:w-[24rem]"
           >
@@ -209,8 +209,6 @@ export function ChatAssistant({ hasResult, analyzing }) {
       <M.button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        whileHover={{ scale: 1.04 }}
-        whileTap={{ scale: 0.96 }}
         className="flex size-14 items-center justify-center rounded-2xl bg-[var(--bq-accent)] text-[#06201c] transition-colors hover:bg-[var(--bq-accent-strong)]"
         aria-expanded={open}
         aria-label={open ? "Close assistant" : "Open BIOQURE assistant"}

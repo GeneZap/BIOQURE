@@ -531,10 +531,6 @@ export default function DnaHelix({ className = "" }) {
     <div
       ref={wrapRef}
       className={`bq-helix-stage relative h-full w-full min-h-[560px] cursor-grab select-none active:cursor-grabbing ${className}`}
-      style={{
-        background:
-          "radial-gradient(ellipse 45% 55% at 50% 50%, rgba(110,150,220,0.16), rgba(10,14,20,0) 70%)",
-      }}
     >
       <canvas ref={glCanvasRef} className="absolute inset-0" aria-hidden />
       <canvas ref={overlayRef} className="pointer-events-none absolute inset-0" aria-hidden />
