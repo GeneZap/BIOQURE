@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Minus, Pause, Play, Plus } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 
 /**
  * Animated particle double-helix hero, modeled on the reference genomic
@@ -292,8 +292,8 @@ export default function DnaHelix({ className = "" }) {
   const wrapRef = useRef(null);
   const glCanvasRef = useRef(null);
   const overlayRef = useRef(null);
-  const stateRef = useRef({ zoom: 1, paused: false, pointerX: 0, pointerY: 0, drag: null, spin: 0 });
-  const [zoom, setZoom] = useState(1);
+  const stateRef = useRef({ zoom: 1.08, paused: false, pointerX: 0, pointerY: 0, drag: null, spin: 0 });
+  const [zoom] = useState(1.08);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
@@ -559,7 +559,7 @@ export default function DnaHelix({ className = "" }) {
         </div>
       ))}
 
-      <div className="absolute bottom-2 right-2 z-10 flex items-end gap-2">
+      <div className="absolute bottom-2 right-2 z-10">
         <button
           type="button"
           onClick={() => setPaused((p) => !p)}
@@ -568,24 +568,6 @@ export default function DnaHelix({ className = "" }) {
         >
           {paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
         </button>
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.min(1.25, +(z + 0.1).toFixed(2)))}
-            className="bq-icon-btn"
-            aria-label="Zoom in"
-          >
-            <Plus className="size-4" aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.max(0.7, +(z - 0.1).toFixed(2)))}
-            className="bq-icon-btn"
-            aria-label="Zoom out"
-          >
-            <Minus className="size-4" aria-hidden />
-          </button>
-        </div>
       </div>
     </div>
   );
