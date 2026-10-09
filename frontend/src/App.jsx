@@ -17,9 +17,9 @@ import ReportQuantum from "./components/report/ReportQuantum.jsx";
 import ReportBiomarkers from "./components/report/ReportBiomarkers.jsx";
 import ReportInputMetrics from "./components/report/ReportInputMetrics.jsx";
 import { ChatAssistant } from "./ChatAssistant.jsx";
-import ProductTour from "./tour/ProductTour.jsx";
-import HelpMenu from "./tour/HelpMenu.jsx";
-import { startProductTour } from "./tour/tourEvents.js";
+import ProductTour from "./TOUR/ProductTour.jsx";
+import HelpMenu from "./TOUR/HelpMenu.jsx";
+import { startProductTour } from "./TOUR/tourEvents.js";
 import DnaHelix from "./DnaHelix.jsx";
 
 /* =========================================================
