@@ -2,6 +2,20 @@ import { API_BASE } from "../config.js";
 
 const BASE = `${API_BASE}/api/v1`;
 
+// Each public catalog item is one complete TCGA-BRCA STAR-counts sample.
+// Newer API versions may return these counts directly; today's compact
+// catalog does not, so use the locked pipeline contract as the fallback.
+const PUBLIC_SAMPLE_DEFAULTS = Object.freeze({
+  sampleCount: 1,
+  geneCount: 60660,
+  featureCount: 8,
+});
+
+function finiteCount(value, fallback) {
+  const count = Number(value);
+  return Number.isFinite(count) && count >= 0 ? count : fallback;
+}
+
 async function parseResponse(response) {
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json")
@@ -64,6 +78,18 @@ export async function listPublicDatasets(options = {}) {
       size_bytes: sample.size_bytes,
       file_sha256: sample.file_sha256,
       biomarkers_available: sample.biomarkers_available,
+      sample_count: finiteCount(
+        sample.sample_count,
+        PUBLIC_SAMPLE_DEFAULTS.sampleCount,
+      ),
+      gene_count: finiteCount(
+        sample.gene_count,
+        PUBLIC_SAMPLE_DEFAULTS.geneCount,
+      ),
+      feature_count: finiteCount(
+        sample.feature_count ?? sample.selected_feature_count,
+        PUBLIC_SAMPLE_DEFAULTS.featureCount,
+      ),
     })),
   };
 }

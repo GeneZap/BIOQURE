@@ -82,6 +82,14 @@ function normalizeDataset(item, index = 0) {
       item?.genes,
       item?.n_genes
     ),
+    featureCount: firstDefined(
+      item?.feature_count,
+      item?.featureCount,
+      item?.selected_feature_count,
+      item?.selectedFeatureCount,
+      item?.biomarker_count,
+      item?.biomarkerCount
+    ),
     fileName: firstDefined(
       item?.expression_file,
       item?.expression_filename,
@@ -265,6 +273,10 @@ const DatasetCard = memo(function DatasetCard({ dataset, active, onSelect }) {
 
         <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
           Genes: {formatNumber(dataset.geneCount)}
+        </span>
+
+        <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
+          Features: {formatNumber(dataset.featureCount)}
         </span>
       </div>
     </button>
@@ -580,8 +592,8 @@ export default function DatasetPoolPanel({
               value={formatNumber(selectedDataset.sampleCount)}
             />
             <Stat
-              label="Genes"
-              value={formatNumber(selectedDataset.geneCount)}
+              label="Features"
+              value={formatNumber(selectedDataset.featureCount)}
             />
           </div>
         )}
@@ -851,9 +863,16 @@ export default function DatasetPoolPanel({
                       />
 
                       <Stat
-                        label="Features"
+                        label="Source genes"
                         value={formatNumber(
                           selectedDataset.geneCount
+                        )}
+                      />
+
+                      <Stat
+                        label="Model features"
+                        value={formatNumber(
+                          selectedDataset.featureCount
                         )}
                       />
                     </div>
