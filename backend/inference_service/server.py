@@ -19,15 +19,26 @@ from .inference import ALLOWED_SUFFIX, MAX_UPLOAD_BYTES, InferenceError, LockedI
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web"
 ENGINE = LockedInferenceEngine()
-CORS_ORIGINS = {origin.strip() for origin in os.getenv("BIOQURE_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()}
+FIRST_PARTY_CORS_ORIGINS = {
+    "https://bioqure.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+}
+CORS_ORIGINS = FIRST_PARTY_CORS_ORIGINS | {
+    origin.strip().rstrip("/")
+    for origin in os.getenv("BIOQURE_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+}
 
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "BioQureInference/1.0"
 
     def _cors(self) -> None:
-        origin = self.headers.get("Origin", "")
-        self.send_header("Access-Control-Allow-Origin", origin if origin in CORS_ORIGINS else "")
+        origin = self.headers.get("Origin", "").rstrip("/")
+        if origin in CORS_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Request-ID")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
