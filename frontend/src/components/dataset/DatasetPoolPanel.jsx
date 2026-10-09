@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   analyzePublicDataset,
   getBIOQUREStatus,
@@ -203,6 +210,59 @@ function Stat({ label, value }) {
   );
 }
 
+const DatasetCard = memo(function DatasetCard({ dataset, active, onSelect }) {
+  return (
+    <button
+      type="button"
+      data-tour="dataset-card"
+      onClick={() => onSelect(dataset)}
+      className={`w-full rounded-2xl border p-4 text-left transition ${
+        active
+          ? "border-[var(--bq-accent)]/50 bg-[var(--bq-accent)]/[0.06] ring-1 ring-[var(--bq-accent)]/30"
+          : "border-[var(--bq-border)] bg-[var(--bq-surface)] hover:border-[var(--bq-border-strong)]"
+      }`}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-lg bg-[var(--bq-accent)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#06201c]">
+              {dataset.id}
+            </span>
+
+            <Badge tone="success">{dataset.access}</Badge>
+          </div>
+
+          <div className="mt-2 truncate text-sm font-bold text-[var(--bq-text)]">
+            {dataset.name}
+          </div>
+
+          <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--bq-text-dim)]">
+            {dataset.description}
+          </div>
+        </div>
+
+        <div className="shrink-0 text-xs text-[var(--bq-text-faint)]">
+          {dataset.project}
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
+          {dataset.dataType}
+        </span>
+
+        <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
+          Samples: {formatNumber(dataset.sampleCount)}
+        </span>
+
+        <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
+          Genes: {formatNumber(dataset.geneCount)}
+        </span>
+      </div>
+    </button>
+  );
+});
+
 /* =========================================================
    MAIN COMPONENT
    ========================================================= */
@@ -234,6 +294,16 @@ export default function DatasetPoolPanel({
   const [backendStatus, setBackendStatus] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
 
+  /* Always-current refs keep callbacks/effects stable and free of stale closures */
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const datasetsRef = useRef(datasets);
+  datasetsRef.current = datasets;
+  const onDatasetSelectRef = useRef(onDatasetSelect);
+  onDatasetSelectRef.current = onDatasetSelect;
+  const onAnalysisCompleteRef = useRef(onAnalysisComplete);
+  onAnalysisCompleteRef.current = onAnalysisComplete;
+
   /* -------------------------------------------------------
      Load datasets + backend status
      ------------------------------------------------------- */
@@ -251,14 +321,10 @@ export default function DatasetPoolPanel({
 
       setDatasets(normalized);
 
-      const preferredId =
-        selectedDatasetId ||
-        normalized[0]?.id ||
-        "";
-
-      if (preferredId) {
-        setSelectedId(preferredId);
-      }
+      // Keep the current selection on refresh; only pick a default if none.
+      setSelectedId(
+        (prev) => prev || selectedDatasetId || normalized[0]?.id || ""
+      );
     } catch (err) {
       setError(
         err?.message ||
@@ -282,56 +348,62 @@ export default function DatasetPoolPanel({
   useEffect(() => {
     loadDatasets();
     loadBackendStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (selectedDatasetId && selectedDatasetId !== selectedId) {
-      setSelectedId(selectedDatasetId);
-    }
-  }, [selectedDatasetId, selectedId]);
+  // NOTE: the old effect that synced the `selectedDatasetId` prop back into
+  // `selectedId` was removed. It fought the child's own selection while a
+  // request was in flight, causing a parent/child ping-pong loop.
 
   /* -------------------------------------------------------
-     Load selected dataset details
+     Load selected dataset details (runs only when selectedId changes)
      ------------------------------------------------------- */
-
-  async function loadDatasetDetails(datasetId) {
-    if (!datasetId) return;
-
-    setLoadingDetail(true);
-    setAnalysis(null);
-    setAnalysisError("");
-
-    try {
-      const response = await getPublicDataset(datasetId);
-
-      const normalized = normalizeDataset(response);
-
-      setSelectedDataset(normalized);
-
-      if (onDatasetSelect) {
-        onDatasetSelect(normalized);
-      }
-    } catch (err) {
-      setSelectedDataset(
-        datasets.find((dataset) => dataset.id === datasetId) || null
-      );
-
-      setError(
-        err?.message ||
-          "Unable to load dataset details."
-      );
-    } finally {
-      setLoadingDetail(false);
-    }
-  }
 
   useEffect(() => {
     if (!selectedId) {
       setSelectedDataset(null);
-      return;
+      return undefined;
     }
 
-    loadDatasetDetails(selectedId);
+    setAnalysis(null);
+    setAnalysisError("");
+
+    // Use the already-loaded list: no extra network request per click.
+    const local = datasetsRef.current.find(
+      (dataset) => dataset.id === selectedId
+    );
+
+    if (local) {
+      setSelectedDataset(local);
+      setLoadingDetail(false);
+      onDatasetSelectRef.current?.(local);
+      return undefined;
+    }
+
+    // Fallback (e.g. an id supplied before the list loaded). Stale replies
+    // are ignored via the `cancelled` flag.
+    let cancelled = false;
+    setLoadingDetail(true);
+
+    getPublicDataset(selectedId)
+      .then((response) => {
+        if (cancelled) return;
+        const normalized = normalizeDataset(response);
+        setSelectedDataset(normalized);
+        onDatasetSelectRef.current?.(normalized);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSelectedDataset(null);
+        setError(err?.message || "Unable to load dataset details.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetail(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId]);
 
   /* -------------------------------------------------------
@@ -368,11 +440,11 @@ export default function DatasetPoolPanel({
      Select dataset
      ------------------------------------------------------- */
 
-  function handleSelect(dataset) {
+  const handleSelect = useCallback((dataset) => {
+    if (selectedIdRef.current === dataset.id) return; // ignore re-click
+    setError("");
     setSelectedId(dataset.id);
-    setAnalysis(null);
-    setAnalysisError("");
-  }
+  }, []);
 
   /* -------------------------------------------------------
      Analyze dataset
@@ -383,27 +455,32 @@ export default function DatasetPoolPanel({
       return;
     }
 
+    const requestedId = selectedId;
+    const requestedDataset = selectedDataset;
+
     setAnalyzing(true);
     setAnalysis(null);
     setAnalysisError("");
 
     try {
-      const result = await analyzePublicDataset(selectedId, {
+      const result = await analyzePublicDataset(requestedId, {
         return_details: true,
       });
 
-      setAnalysis(result);
+      // User switched datasets while this ran: drop the stale result.
+      if (selectedIdRef.current !== requestedId) return;
 
-      if (onAnalysisComplete) {
-        onAnalysisComplete(result, selectedDataset);
-      }
+      setAnalysis(result);
+      onAnalysisCompleteRef.current?.(result, requestedDataset);
     } catch (err) {
-      setAnalysisError(
-        err?.message ||
-          "BIOQURE analysis could not be completed."
-      );
+      if (selectedIdRef.current === requestedId) {
+        setAnalysisError(
+          err?.message ||
+            "BIOQURE analysis could not be completed."
+        );
+      }
     } finally {
-      setAnalyzing(false);
+      setAnalyzing(false); // always release the UI, even on failure
     }
   }
 
@@ -720,63 +797,14 @@ export default function DatasetPoolPanel({
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredDatasets.map((dataset) => {
-                const active = dataset.id === selectedId;
-
-                return (
-                  <button
-                    type="button"
-                    key={dataset.id}
-                    data-tour="dataset-card"
-                    onClick={() => handleSelect(dataset)}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
-                      active
-                        ? "border-[var(--bq-accent)]/50 bg-[var(--bq-accent)]/[0.06] ring-1 ring-[var(--bq-accent)]/30"
-                        : "border-[var(--bq-border)] bg-[var(--bq-surface)] hover:border-[var(--bq-border-strong)]"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-lg bg-[var(--bq-accent)] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#06201c]">
-                            {dataset.id}
-                          </span>
-
-                          <Badge tone="success">
-                            {dataset.access}
-                          </Badge>
-                        </div>
-
-                        <div className="mt-2 truncate text-sm font-bold text-[var(--bq-text)]">
-                          {dataset.name}
-                        </div>
-
-                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--bq-text-dim)]">
-                          {dataset.description}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 text-xs text-[var(--bq-text-faint)]">
-                        {dataset.project}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
-                        {dataset.dataType}
-                      </span>
-
-                      <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
-                        Samples: {formatNumber(dataset.sampleCount)}
-                      </span>
-
-                      <span className="rounded-lg bg-[var(--bq-surface-alt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--bq-text-dim)]">
-                        Genes: {formatNumber(dataset.geneCount)}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              {filteredDatasets.map((dataset) => (
+                <DatasetCard
+                  key={dataset.id}
+                  dataset={dataset}
+                  active={dataset.id === selectedId}
+                  onSelect={handleSelect}
+                />
+              ))}
             </div>
           )}
         </div>

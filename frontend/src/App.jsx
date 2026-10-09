@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { memo, useMemo, useState } from "react";
 import {
   Search,
   Bell,
@@ -20,7 +20,10 @@ import { ChatAssistant } from "./ChatAssistant.jsx";
 import ProductTour from "./TOUR/ProductTour.jsx";
 import HelpMenu from "./TOUR/HelpMenu.jsx";
 import { startProductTour } from "./TOUR/tourEvents.js";
-import DnaHelix from "./DnaHelix.jsx";
+import DnaHelixBase from "./DnaHelix.jsx";
+
+// DnaHelix takes no props; memoizing stops it re-rendering on every dataset selection.
+const DnaHelix = memo(DnaHelixBase);
 
 /* =========================================================
    HELPERS
