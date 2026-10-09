@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { getBiomarkers } from "../../services/analysisContract.js";
 
 function firstDefined(...values) {
   return values.find(
@@ -6,29 +7,12 @@ function firstDefined(...values) {
   );
 }
 
-function normalizeBiomarkers(analysis) {
-  const source =
-    analysis?.biomarkers ??
-    analysis?.biomarker_summary ??
-    analysis?.result?.biomarkers ??
-    [];
-
-  if (Array.isArray(source)) {
-    return source;
-  }
-
-  return Object.entries(source || {}).map(([gene, value]) => ({
-    gene,
-    value,
-  }));
-}
-
 export default function ReportBiomarkers({
   analysis,
   limit = 8,
 }) {
   const biomarkers = useMemo(
-    () => normalizeBiomarkers(analysis),
+    () => getBiomarkers(analysis),
     [analysis]
   );
 
@@ -56,6 +40,8 @@ export default function ReportBiomarkers({
 
         <div className="mt-1 text-xs text-[var(--bq-text-faint)]">
           Feature-level values returned by the BIOQURE analysis service.
+          Values are expression features supplied to the locked models, not
+          causal importance scores.
         </div>
       </div>
 
@@ -75,6 +61,8 @@ export default function ReportBiomarkers({
           );
 
           const value = firstDefined(
+            item?.log2_tpm_plus_1,
+            item?.raw_tpm,
             item?.value,
             item?.expression,
             item?.score,
@@ -110,6 +98,12 @@ export default function ReportBiomarkers({
                     ? value.toFixed(4)
                     : String(value ?? "—")}
                 </div>
+                {item?.raw_tpm != null && (
+                  <div className="mt-0.5 text-[10px] text-[var(--bq-text-faint)]">
+                    raw TPM {Number(item.raw_tpm).toFixed(4)} · quantum angle{" "}
+                    {Number(item.quantum_angle).toFixed(4)} rad
+                  </div>
+                )}
               </div>
             </div>
           );

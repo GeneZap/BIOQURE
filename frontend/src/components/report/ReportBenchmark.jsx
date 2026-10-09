@@ -32,6 +32,9 @@ function modelDisplayName(key, model = {}) {
     xgboost: 'XGBoost',
     mlp: 'MLP',
     vqc: 'VQC',
+    classical_logistic: 'Classical logistic regression',
+    quantum_candidate_a_mean: 'Candidate A five-seed mean ensemble',
+    quantum_ae_balanced: 'A/E balanced quantum ensemble',
   }
 
   return names[key] || key
@@ -110,10 +113,13 @@ export default function ReportBenchmark({ analysis = null }) {
   const models = benchmark?.models || {}
   const checks = benchmark?.checks || {}
   const calibration = benchmark?.calibration || {}
+  const predictions = result?.predictions || {}
+  const deployment = result?.deployment_prediction || {}
 
   const modelEntries = Object.entries(models)
 
   const selectedModel =
+    deployment?.model ??
     result?.prediction?.selected_model ??
     result?.selected_model ??
     benchmark?.selected_model ??
@@ -133,7 +139,11 @@ export default function ReportBenchmark({ analysis = null }) {
   const calibrationMetric = calibration?.metric || calibration?.name || 'Calibration'
 
   const quantumCalibration =
-    calibration?.quantum ?? calibration?.vqc ?? calibration?.quantum_brier_score
+    calibration?.quantum_candidate_a ??
+    calibration?.quantum_ae_balanced ??
+    calibration?.quantum ??
+    calibration?.vqc ??
+    calibration?.quantum_brier_score
 
   const classicalCalibration =
     calibration?.classical_baseline ?? calibration?.classical ?? calibration?.classical_brier_score
@@ -168,6 +178,54 @@ export default function ReportBenchmark({ analysis = null }) {
           <p className="mt-0.5 text-sm font-bold text-violet-300">{outcome}</p>
         </div>
       </div>
+
+      {/* Per-sample endpoint predictions */}
+      <section className="overflow-hidden rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)]">
+        <div className="border-b border-[var(--bq-border)] px-5 py-4">
+          <h3 className="text-sm font-bold text-[var(--bq-text)]">Predictions for this sample</h3>
+          <p className="mt-1 text-xs text-[var(--bq-text-dim)]">
+            Candidate A and A/E share one locked quantum ensemble pass, so their reported quantum timing is shared.
+          </p>
+        </div>
+        {Object.keys(predictions).length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left">
+              <thead>
+                <tr className="border-b border-[var(--bq-border)] bg-[var(--bq-surface-alt)]">
+                  {['Model', 'Tumor probability', 'Threshold', 'Prediction', 'Inference'].map((heading) => (
+                    <th key={heading} className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--bq-text-faint)]">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(predictions).map(([key, model]) => (
+                  <tr key={key} className={`border-b border-[var(--bq-border)] last:border-b-0 ${key === selectedModel ? 'bg-violet-400/10' : ''}`}>
+                    <td className="px-5 py-4 text-sm font-semibold text-[var(--bq-text)]">
+                      {modelDisplayName(key, model)}
+                      {key === selectedModel && (
+                        <span className="ml-2 rounded-full border border-violet-400/30 px-2 py-1 text-[9px] uppercase text-violet-300">Deployment</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4"><MetricCell value={model?.tumor_probability} percentage /></td>
+                    <td className="px-5 py-4"><MetricCell value={model?.threshold} /></td>
+                    <td className="px-5 py-4 text-xs font-semibold text-[var(--bq-text)]">{model?.predicted_class ?? '—'}</td>
+                    <td className="px-5 py-4 text-xs text-[var(--bq-text-dim)]">
+                      <span className="inline-flex items-center gap-1.5 font-mono">
+                        <Clock3 className="size-3.5" aria-hidden />
+                        {model?.inference_ms != null ? `${model.inference_ms} ms` : '—'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-5 py-8 text-sm text-[var(--bq-text-dim)]">No endpoint predictions were returned.</div>
+        )}
+      </section>
 
       {/* Selection summary */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -259,16 +317,16 @@ export default function ReportBenchmark({ analysis = null }) {
                     Accuracy
                   </th>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--bq-text-faint)]">
-                    AUC
+                    ROC-AUC
                   </th>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--bq-text-faint)]">
-                    F1
+                    Balanced accuracy
                   </th>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--bq-text-faint)]">
-                    Brier score
+                    Sensitivity
                   </th>
                   <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--bq-text-faint)]">
-                    Inference
+                    Specificity
                   </th>
                 </tr>
               </thead>
@@ -305,24 +363,19 @@ export default function ReportBenchmark({ analysis = null }) {
                       </td>
 
                       <td className="px-5 py-4">
-                        <MetricCell value={model?.auc} percentage />
+                        <MetricCell value={model?.roc_auc ?? model?.auc} percentage />
                       </td>
 
                       <td className="px-5 py-4">
-                        <MetricCell value={model?.f1} percentage />
+                        <MetricCell value={model?.balanced_accuracy} percentage />
                       </td>
 
                       <td className="px-5 py-4">
-                        <MetricCell value={model?.brier_score} />
+                        <MetricCell value={model?.sensitivity} percentage />
                       </td>
 
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-1.5 text-xs text-[var(--bq-text-dim)]">
-                          <Clock3 className="size-3.5" aria-hidden />
-                          <span className="font-mono">
-                            {model?.inference_ms != null ? `${model.inference_ms} ms` : '—'}
-                          </span>
-                        </div>
+                        <MetricCell value={model?.specificity} percentage />
                       </td>
                     </tr>
                   )

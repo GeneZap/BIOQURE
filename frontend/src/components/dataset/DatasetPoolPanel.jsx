@@ -13,6 +13,14 @@ import {
   listPublicDatasets,
   savePublicDataset,
 } from "../../services/datasetsApi.js";
+import {
+  getBiomarkers,
+  getFallbackUsed,
+  getPrediction,
+  getQuantumUsed,
+  getSelectedModel,
+  getTumorProbability,
+} from "../../services/analysisContract.js";
 
 /* =========================================================
    HELPERS
@@ -514,67 +522,12 @@ export default function DatasetPoolPanel({
      Analysis helpers
      ------------------------------------------------------- */
 
-  const prediction = firstDefined(
-    analysis?.prediction,
-    analysis?.result?.prediction,
-    analysis?.classification,
-    analysis?.result?.classification
-  );
-
-  const predictedLabel = firstDefined(
-    prediction?.label,
-    prediction?.class_label,
-    prediction?.prediction,
-    analysis?.predicted_label,
-    analysis?.predicted_class,
-    analysis?.label,
-    typeof prediction === "string" ? prediction : null
-  );
-
-  const predictedProbability = firstDefined(
-    prediction?.probability,
-    prediction?.confidence,
-    prediction?.score,
-    analysis?.probability,
-    analysis?.confidence,
-    analysis?.score
-  );
-
-  const selectedModel = firstDefined(
-    analysis?.model_selection?.selected_model,
-    analysis?.model_selection?.model,
-    analysis?.selected_model,
-    analysis?.model,
-    analysis?.inference?.selected_model
-  );
-
-  const quantumUsed = firstDefined(
-    analysis?.quantum?.used,
-    analysis?.quantum_used,
-    analysis?.runtime?.quantum_used,
-    analysis?.inference?.quantum_used
-  );
-
-  const fallbackUsed = firstDefined(
-    analysis?.fallback_used,
-    analysis?.runtime?.fallback_used,
-    analysis?.inference?.fallback_used
-  );
-
-  const biomarkerSummary =
-    analysis?.biomarkers ??
-    analysis?.biomarker_summary ??
-    analysis?.result?.biomarkers ??
-    [];
-
-  const biomarkerRows = Array.isArray(biomarkerSummary)
-    ? biomarkerSummary
-    : Object.entries(biomarkerSummary || {}).map(
-        ([gene, value]) => ({
-          gene,
-          value,
-        })
-      );
+  const predictedLabel = getPrediction(analysis);
+  const predictedProbability = getTumorProbability(analysis);
+  const selectedModel = getSelectedModel(analysis);
+  const quantumUsed = getQuantumUsed(analysis);
+  const fallbackUsed = getFallbackUsed(analysis);
+  const biomarkerRows = getBiomarkers(analysis);
 
   /* -------------------------------------------------------
      Compact mode
@@ -997,7 +950,7 @@ export default function DatasetPoolPanel({
 
                     <div className="rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] p-4">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
-                        Confidence
+                        Tumor probability
                       </div>
 
                       <div className="mt-1 text-lg font-extrabold text-[var(--bq-text)]">

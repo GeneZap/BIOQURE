@@ -21,6 +21,13 @@ import ProductTour from "./TOUR/ProductTour.jsx";
 import HelpMenu from "./TOUR/HelpMenu.jsx";
 import { startProductTour } from "./TOUR/tourEvents.js";
 import DnaHelixBase from "./DnaHelix.jsx";
+import {
+  getBiomarkers,
+  getPrediction,
+  getQuantumUsed,
+  getSelectedModel,
+  getTumorProbability,
+} from "./services/analysisContract.js";
 
 // DnaHelix takes no props; memoizing stops it re-rendering on every dataset selection.
 const DnaHelix = memo(DnaHelixBase);
@@ -29,79 +36,7 @@ const DnaHelix = memo(DnaHelixBase);
    HELPERS
    ========================================================= */
 
-function firstDefined(...values) {
-  return values.find(
-    (value) => value !== undefined && value !== null && value !== ""
-  );
-}
-
-function getPrediction(result) {
-  const prediction = firstDefined(
-    result?.prediction,
-    result?.result?.prediction,
-    result?.classification
-  );
-
-  if (typeof prediction === "string") {
-    return prediction;
-  }
-
-  return firstDefined(
-    prediction?.label,
-    prediction?.class_label,
-    prediction?.prediction,
-    result?.predicted_label,
-    result?.predicted_class,
-    result?.label,
-    "—"
-  );
-}
-
-function getConfidence(result) {
-  const prediction = firstDefined(
-    result?.prediction,
-    result?.result?.prediction
-  );
-
-  return firstDefined(
-    prediction?.probability,
-    prediction?.confidence,
-    prediction?.score,
-    result?.probability,
-    result?.confidence,
-    result?.score
-  );
-}
-
-function getModel(result) {
-  return firstDefined(
-    result?.model_selection?.selected_model,
-    result?.model_selection?.model,
-    result?.selected_model,
-    result?.model,
-    result?.inference?.selected_model,
-    "—"
-  );
-}
-
-function getBiomarkers(result, limit = 4) {
-  const source =
-    result?.biomarkers ??
-    result?.biomarker_summary ??
-    result?.result?.biomarkers ??
-    [];
-
-  const list = Array.isArray(source)
-    ? source
-    : Object.entries(source || {}).map(([gene, value]) => ({ gene, value }));
-
-  return list.slice(0, limit).map((item, index) => ({
-    gene: firstDefined(item?.gene, item?.gene_name, item?.feature, item?.name, `Feature ${index + 1}`),
-    value: firstDefined(item?.value, item?.expression, item?.score, item?.importance, item?.signal),
-  }));
-}
-
-function formatConfidence(value) {
+function formatProbability(value) {
   if (value === undefined || value === null || value === "") return "—";
   const number = Number(value);
   if (!Number.isFinite(number)) return String(value);
@@ -110,12 +45,7 @@ function formatConfidence(value) {
 }
 
 function getQuantumState(result) {
-  const value = firstDefined(
-    result?.quantum?.used,
-    result?.quantum_used,
-    result?.runtime?.quantum_used,
-    result?.inference?.quantum_used
-  );
+  const value = getQuantumUsed(result);
 
   if (value === true) return "Used";
   if (value === false) return "Not used";
@@ -166,7 +96,7 @@ function TabButton({
 
 function SimpleView({ analysis, selectedModel, prediction, confidence, quantumState }) {
   const biomarkers = useMemo(() => getBiomarkers(analysis, 4), [analysis]);
-  const confidenceText = formatConfidence(confidence);
+  const confidenceText = formatProbability(confidence);
 
   return (
     <div className="space-y-5">
@@ -183,7 +113,7 @@ function SimpleView({ analysis, selectedModel, prediction, confidence, quantumSt
 
           <div className="shrink-0 rounded-xl border border-[var(--bq-border)] bg-[var(--bq-surface-alt)] px-5 py-4 text-center">
             <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
-              Confidence level
+              Tumor probability
             </div>
             <div className="bq-mono mt-1 text-2xl font-bold text-[var(--bq-accent-strong)]">
               {confidenceText}
@@ -246,7 +176,7 @@ function SimpleView({ analysis, selectedModel, prediction, confidence, quantumSt
 function ReadGuide() {
   const items = [
     ["Prediction", "The model's classification for this sample (e.g. tumour-like vs normal-like)."],
-    ["Confidence", "How strongly the selected model supports that prediction, as a percentage."],
+    ["Tumor probability", "The locked deployment endpoint's estimated tumor-class probability. It is not a clinical certainty score."],
     ["Selected model", "Which model (classical or quantum) was used to produce the result shown."],
     ["Quantum path", "Whether the quantum circuit was actually used, or the platform fell back to a classical model."],
     ["Benchmark", "Accuracy, AUC, and F1 scores comparing every model on the same held-out data — higher is better for all three."],
@@ -364,12 +294,12 @@ export default function App() {
   );
 
   const confidence = useMemo(
-    () => getConfidence(analysis),
+    () => getTumorProbability(analysis),
     [analysis]
   );
 
   const selectedModel = useMemo(
-    () => getModel(analysis),
+    () => getSelectedModel(analysis),
     [analysis]
   );
 
@@ -741,14 +671,11 @@ export default function App() {
 
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-sm text-[var(--bq-text-dim)]">
-                                  Confidence
+                                  Tumor probability
                                 </span>
 
                                 <span className="text-sm font-bold text-[var(--bq-text)]">
-                                  {confidence !== undefined &&
-                                  confidence !== null
-                                    ? confidence
-                                    : "—"}
+                                  {formatProbability(confidence)}
                                 </span>
                               </div>
 

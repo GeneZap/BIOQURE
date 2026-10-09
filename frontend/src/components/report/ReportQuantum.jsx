@@ -6,6 +6,17 @@ function firstDefined(...values) {
   );
 }
 
+function formatPercent(value, digits = 1) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${(number * 100).toFixed(digits)}%` : "—";
+}
+
+function formatSeedProbabilities(values) {
+  return Array.isArray(values) && values.length
+    ? values.map((value) => formatPercent(value)).join(" · ")
+    : "—";
+}
+
 function StatusBadge({ active }) {
   return (
     <span
@@ -42,6 +53,10 @@ export default function ReportQuantum({
     analysis?.quantum_metadata ??
     analysis?.runtime?.quantum ??
     {};
+  const primary = quantum?.primary_configuration ?? {};
+  const secondary = quantum?.secondary_configuration ?? {};
+  const candidateA = analysis?.predictions?.quantum_candidate_a_mean ?? {};
+  const balancedAE = analysis?.predictions?.quantum_ae_balanced ?? {};
 
   const used = firstDefined(
     quantum?.used,
@@ -50,6 +65,7 @@ export default function ReportQuantum({
   );
 
   const fallbackUsed = firstDefined(
+    quantum?.fallback_used,
     analysis?.fallback_used,
     analysis?.runtime?.fallback_used
   );
@@ -75,6 +91,7 @@ export default function ReportQuantum({
   );
 
   const featureMap = firstDefined(
+    primary?.feature_map,
     quantum?.feature_map,
     quantum?.featureMap,
     quantum?.encoding,
@@ -82,6 +99,7 @@ export default function ReportQuantum({
   );
 
   const ansatz = firstDefined(
+    primary?.ansatz,
     quantum?.ansatz,
     quantum?.variational_form,
     quantum?.variational_circuit,
@@ -102,7 +120,10 @@ export default function ReportQuantum({
 
   const depth = firstDefined(
     quantum?.depth,
-    quantum?.circuit_depth
+    quantum?.circuit_depth,
+    primary?.feature_map_reps != null && primary?.ansatz_reps != null
+      ? `feature map ${primary.feature_map_reps} / ansatz ${primary.ansatz_reps} reps`
+      : null
   );
 
   return (
@@ -127,6 +148,42 @@ export default function ReportQuantum({
         </div>
 
         <StatusBadge active={used === true} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-violet-400/30 bg-violet-400/10 p-5">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-300">
+            Candidate A five-seed mean
+          </div>
+          <div className="mt-3 text-3xl font-extrabold text-[var(--bq-text)]">
+            {formatPercent(candidateA?.tumor_probability)}
+          </div>
+          <p className="mt-1 text-xs text-[var(--bq-text-dim)]">
+            Tumor probability · threshold {candidateA?.threshold ?? "—"}
+          </p>
+          <p className="mt-4 text-[11px] leading-5 text-[var(--bq-text-dim)]">
+            Five Candidate A VQCs use different random seeds; their positive-class probabilities are averaged.
+          </p>
+          <InfoRow label="Seed probabilities" value={formatSeedProbabilities(candidateA?.seed_probabilities)} />
+          <InfoRow label="Seed standard deviation" value={candidateA?.seed_standard_deviation?.toFixed?.(4)} />
+        </div>
+
+        <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-5">
+          <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300">
+            A/E balanced ensemble
+          </div>
+          <div className="mt-3 text-3xl font-extrabold text-[var(--bq-text)]">
+            {formatPercent(balancedAE?.tumor_probability)}
+          </div>
+          <p className="mt-1 text-xs text-[var(--bq-text-dim)]">
+            Tumor probability · threshold {balancedAE?.threshold ?? "—"}
+          </p>
+          <p className="mt-4 text-[11px] leading-5 text-[var(--bq-text-dim)]">
+            This is not Candidate E alone. It combines the five-seed Candidate A median with the five-seed Candidate E median using locked weights.
+          </p>
+          <InfoRow label="Candidate A median" value={formatPercent(balancedAE?.candidate_a_median_probability)} />
+          <InfoRow label="Candidate E median" value={formatPercent(balancedAE?.candidate_e_median_probability)} />
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -204,6 +261,11 @@ export default function ReportQuantum({
               />
 
               <InfoRow
+                label="Entanglement"
+                value={primary?.entanglement}
+              />
+
+              <InfoRow
                 label="Circuit depth"
                 value={depth}
               />
@@ -262,6 +324,20 @@ export default function ReportQuantum({
               />
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[var(--bq-border)] bg-[var(--bq-surface)] p-5">
+        <div className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--bq-text-faint)]">
+          Balanced A/E configuration
+        </div>
+        <div className="mt-4 grid gap-x-6 lg:grid-cols-2">
+          <InfoRow label="Candidate A" value={secondary?.candidate_a} />
+          <InfoRow label="Candidate E" value={secondary?.candidate_e} />
+          <InfoRow label="Candidate A weight" value={secondary?.weight_candidate_a} />
+          <InfoRow label="Candidate E weight" value={secondary?.weight_candidate_e} />
+          <InfoRow label="Aggregation" value={secondary?.aggregation} />
+          <InfoRow label="Decision threshold" value={secondary?.decision_threshold} />
         </div>
       </div>
 

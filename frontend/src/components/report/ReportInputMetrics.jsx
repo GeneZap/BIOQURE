@@ -108,6 +108,8 @@ export default function ReportInputMetrics({
     analysis?.runtime ??
     {};
 
+  const timing = analysis?.timing_ms ?? {};
+
   const sampleCount = firstDefined(
     dataset?.sampleCount,
     dataset?.sample_count,
@@ -142,18 +144,22 @@ export default function ReportInputMetrics({
   );
 
   const preprocessingTime = firstDefined(
+    timing?.preprocessing,
     runtime?.preprocessing_time_ms,
     runtime?.preprocess_time_ms,
     preprocessing?.duration_ms
   );
 
   const inferenceTime = firstDefined(
+    timing?.quantum_inference,
+    timing?.classical_inference,
     runtime?.inference_time_ms,
     runtime?.prediction_time_ms,
     runtime?.duration_ms
   );
 
   const totalTime = firstDefined(
+    timing?.total,
     runtime?.total_time_ms,
     runtime?.elapsed_ms,
     analysis?.elapsed_ms

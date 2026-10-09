@@ -67,7 +67,10 @@ export default function HelpMenu() {
                   }}
                 >
                   <span className="bq-help-icon">
-                    <Icon className="size-4" aria-hidden />
+                    {React.createElement(Icon, {
+                      className: "size-4",
+                      "aria-hidden": true,
+                    })}
                   </span>
                   <span className="min-w-0 text-left">
                     <span className="block text-[13px] font-medium text-[var(--bq-text)]">{label}</span>
